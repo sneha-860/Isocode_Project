@@ -640,9 +640,11 @@ export default function App() {
               enquiries and bookings. No passport or card details are collected.
             </p>
             <p>
-              Enquiry classification runs in the application. Text is not sent to an external AI
-              provider. Before a real launch, the resort must configure its privacy contact,
-              retention policy and deletion process.
+              When Gemini is configured, enquiry text is sent to Google to suggest a category,
+              extracted details and an unsent reply. Account names and email fields are not sent;
+              basic contact redaction is applied to the message, but is not a complete anonymizer.
+              Please use fictional details. Before a real launch, the resort must configure its
+              privacy contact, retention policy and deletion process.
             </p>
             <button className="button" onClick={() => navigate('home')}>
               Back to the estate

@@ -38,9 +38,10 @@ assert.equal(
   ).status,
   403,
 );
-const arrival = day(170),
-  departure = day(172);
-for (const date of [arrival, day(171)])
+const offset = Number(process.env.TEST_STAY_OFFSET || 170);
+const arrival = day(offset),
+  departure = day(offset + 2);
+for (const date of [arrival, day(offset + 1)])
   assert.equal(
     (
       await call(
@@ -129,6 +130,28 @@ let enquiry = inbox.find((x) => x.id === e.data.id);
 assert.equal(enquiry.category, 'Complaint');
 assert.equal(enquiry.alert, 1);
 assert.equal(enquiry.channel, 'WhatsApp');
+assert(['gemini', 'local-fallback'].includes(enquiry.ai_provider));
+assert.equal((await call('inbox/analyze', { id: enquiry.id }, guest.cookie)).status, 403);
+const config = (await call('inbox', null, staff.cookie)).data.ai;
+assert.equal(typeof config.configured, 'boolean');
+assert(!('apiKey' in config));
+if (!config.configured) {
+  assert.equal(enquiry.ai_provider, 'local-fallback');
+  assert.equal(enquiry.ai_reason, 'not-configured');
+  assert.equal((await call('inbox/analyze', { id: 'ENQ-4412' }, staff.cookie)).status, 503);
+} else {
+  const regenerated = await call('inbox/analyze', { id: 'ENQ-4412' }, staff.cookie);
+  assert.equal(regenerated.status, 200);
+  const sample = (await call('inbox', null, staff.cookie)).data.enquiries.find(
+    (x) => x.id === 'ENQ-4412',
+  );
+  assert.equal(
+    sample.ai_provider,
+    'gemini',
+    'Expected a validated live Gemini result for the offsite sample.',
+  );
+  assert.equal(sample.category, 'Corporate offsite');
+}
 assert.equal(
   (
     await call(
@@ -171,6 +194,7 @@ assert.equal(
   200,
 );
 assert.equal((await call('export', null, guest.cookie)).status, 403);
+assert.equal((await call('inbox/analyze', { id: enquiry.id }, staff.cookie)).status, 409);
 assert.equal((await call('export', null, staff.cookie)).status, 200);
 const csrf = await fetch(base + '/api/logout', {
   method: 'POST',

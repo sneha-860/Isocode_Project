@@ -433,7 +433,8 @@ export function EnquiryForm({ user, notify }: any) {
               <label className="checkbox-label">
                 <input required type="checkbox" />
                 <span>
-                  I agree to have my sample details stored so the team can review this enquiry.
+                  I agree to have my sample enquiry stored and, when enabled, sent to Google Gemini
+                  for analysis. A person reviews every reply.
                 </span>
               </label>
               {error && <ErrorBox message={error} />}

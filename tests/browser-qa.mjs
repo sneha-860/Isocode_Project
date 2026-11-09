@@ -122,6 +122,26 @@ try {
   await click('Use staff account');
   await click('Sign in');
   await wait("!!document.querySelector('.inbox-panel')");
+  if (
+    await evaluate(
+      "document.querySelector('.ai-status-banner strong')?.textContent==='Gemini is configured'",
+    )
+  ) {
+    await evaluate(
+      "[...document.querySelectorAll('.enquiry-row')].find(e=>e.innerText.includes('ENQ-4410')).click()",
+    );
+    await wait("document.querySelector('.reader-header')?.textContent.includes('ENQ-4410')");
+    await click('Regenerate draft with Gemini');
+    assert(
+      await evaluate("document.querySelector('.draft-editor').disabled"),
+      'Draft editing must pause during regeneration.',
+    );
+    await wait(
+      "!document.querySelector('.ai-rerun').disabled && document.querySelector('.routing-heading .badge')?.textContent.trim()==='Gemini'",
+    );
+    assert(await evaluate("document.querySelector('.draft-editor').value.length>10"));
+    console.log('PASS: staff regenerated a persisted draft through the live Gemini API.');
+  }
   await screenshot('05-inbox-desktop');
   await click('Rates & allotment');
   await wait("document.querySelectorAll('.rate-card').length===3");

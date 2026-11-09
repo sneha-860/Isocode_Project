@@ -77,6 +77,12 @@ export const enquiries = sqliteTable('enquiries', {
   draft: text('draft').notNull(),
   status: text('status').notNull().default('new'),
   alert: integer('alert').notNull().default(0),
+  aiProvider: text('ai_provider').notNull().default('legacy-local'),
+  aiModel: text('ai_model'),
+  aiStatus: text('ai_status').notNull().default('legacy'),
+  aiReason: text('ai_reason')
+    .notNull()
+    .default('Local sample or enquiry created before Gemini integration.'),
   created: integer('created').notNull(),
 });
 export const audit = sqliteTable('audit', {

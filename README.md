@@ -22,7 +22,8 @@ Follow [deployment.md](deployment.md), then open the local app.
 - React + TypeScript using the supplied Vinext/Vite starter; a Cloudflare Worker serves UI and API.
 - Cloudflare D1 / SQLite persists accounts, opaque sessions, nightly inventory, reservations, enquiries and audit events.
 - Atomic booking batches and SQL triggers enforce capacity, blackout, unchanged rates and every-night stock.
-- A small multinomial Naive Bayes text classifier runs on the server. Extraction and reply templates are deterministic automation. No external AI key is needed. Model scores are not calibrated probabilities.
+- Gemini classifies enquiries, extracts grounded details and drafts replies through a server-only REST call. Set `GEMINI_API_KEY` in ignored `.dev.vars` to enable it locally. The configurable default model is `gemini-3.5-flash-lite`. Model confidence is self-reported and uncalibrated.
+- Missing keys, timeouts, quota/provider failures and invalid output produce a local template in the human-review lane. Complaints still alert the GM. Seed records retain their local-sample label until staff explicitly regenerate them with Gemini.
 - Roles are enforced in the API; guests can read only their own bookings. New accounts are always guests.
 
 ## Source map
@@ -35,6 +36,7 @@ Follow [deployment.md](deployment.md), then open the local app.
 | `app/shared.tsx` | Shared API client, sign-in dialog, display helpers |
 | `lib/service.ts` | Authentication, authorization, persistence and API actions |
 | `lib/domain.mjs` | Classification, extraction, templates, date and price logic |
+| `lib/gemini.mjs` | Server-only Gemini client, structured schema, evidence validation, redaction and safe fallback |
 | `db/schema.ts`, `drizzle/` | Schema and versioned migrations, including inventory guards |
 | `tests/` | Domain/SQL, API integration and real Chrome UI checks |
 | `scripts/make-submission.py` | Reproducible two-file submission ZIP |
@@ -46,6 +48,7 @@ The starter's retained UI library and hosting helpers are under `components/`, `
 ```sh
 npm run typecheck
 npm test
+npm run test:gemini:live
 npm run build
 # With the local built server running on port 4173:
 npm run test:integration
@@ -53,6 +56,14 @@ npm run test:browser
 ```
 
 Integration testing reserves the last room on days 170–171. Run it against a fresh disposable local database, once per fixture. Never target live data. Browser testing launches local Chrome and saves screenshots under ignored `outputs/qa/`; set `CHROME_PATH` on other systems.
+
+`npm run test:gemini:live` makes up to three real API calls with synthetic brief samples and reports a failure or skip honestly. It reads `.dev.vars` without printing the key. The regular tests mock the provider and require no key. In the app, a global atomic budget permits at most 30 provider calls per hour; calls have a 12-second timeout and no automatic retry.
+
+## Enable Gemini
+
+Copy `.dev.vars.example` to `.dev.vars` and add your Google AI Studio key after `GEMINI_API_KEY=`. The file lives in the repository root, not a `dev` folder. Restart the preview after saving. Do not commit the key or put it in frontend variables. `npm start` explicitly loads this root file even though the generated Wrangler configuration lives under `dist/server`.
+
+Add `GEMINI_API_KEY` separately as a secret in the hosted Sites environment, then deploy a saved version to apply it. Local files are never uploaded. `GEMINI_MODEL` is optional. Enquiry text is sent to Google when enabled; basic contact redaction is applied, but is not a complete anonymizer. Use fictional sample data.
 
 ## Deliberate limits
 

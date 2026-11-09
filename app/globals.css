@@ -7,6 +7,35 @@
   --line: #e0e4da;
   --serif: Georgia, 'Times New Roman', serif;
 }
+.ai-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 17px 19px;
+  border: 1px solid #dce4d2;
+  background: #eef3e7;
+  margin-bottom: 24px;
+}
+.ai-status-banner > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.ai-status-banner strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ai-status-banner p {
+  font-size: 11px;
+  color: #748467;
+  margin-top: 4px;
+}
+.ai-rerun {
+  font-size: 10px;
+  min-height: 36px;
+  padding: 10px 13px;
+  margin-top: 15px;
+  gap: 8px;
+}
 * {
   box-sizing: border-box;
 }

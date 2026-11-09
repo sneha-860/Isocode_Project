@@ -9,6 +9,7 @@ import {
   stayDates,
   price,
 } from './domain.mjs';
+import { analyzeEnquiry, fallbackAnalysis, hasGeminiKey, DEFAULT_GEMINI_MODEL } from './gemini.mjs';
 
 const db = () => {
   if (!env.DB) throw Error('Database unavailable. Please try again shortly.');
@@ -185,6 +186,52 @@ async function audit(id: string, action: string, detail: string) {
     Date.now(),
   ).run();
 }
+function aiConfig() {
+  return {
+    configured: hasGeminiKey(env.GEMINI_API_KEY),
+    model: env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+    hourlyLimit: 30,
+  };
+}
+async function finishAnalysis(enquiry: any) {
+  let analysis;
+  if (!hasGeminiKey(env.GEMINI_API_KEY)) {
+    analysis = fallbackAnalysis(enquiry.name, enquiry.message, 'not-configured');
+  } else {
+    // A single SQL write atomically reserves a request slot across Worker instances.
+    const slot = await q(
+      "INSERT INTO audit(user_id,action,detail,created) SELECT 'automation','gemini-call',?,? WHERE (SELECT count(*) FROM audit WHERE action='gemini-call' AND created>?)<30",
+      enquiry.id,
+      Date.now(),
+      Date.now() - 3600000,
+    ).run();
+    analysis = slot.meta.changes
+      ? await analyzeEnquiry(enquiry, {
+          apiKey: env.GEMINI_API_KEY,
+          model: env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        })
+      : fallbackAnalysis(enquiry.name, enquiry.message, 'request-limit');
+  }
+  // A staff edit during inference wins; do not overwrite a reviewed/sent reply.
+  const update = await q(
+    "UPDATE enquiries SET category=?,confidence=?,owner=?,extracted=?,draft=?,alert=?,ai_provider=?,ai_model=?,ai_status=?,ai_reason=?,status='new' WHERE id=? AND ai_status='processing' AND status=? AND draft=? AND category=?",
+    analysis.category,
+    analysis.confidence,
+    analysis.owner,
+    JSON.stringify(analysis.extracted),
+    analysis.draft,
+    enquiry.alert || analysis.alert ? 1 : 0,
+    analysis.provider,
+    analysis.model,
+    analysis.state,
+    analysis.reason,
+    enquiry.id,
+    enquiry.status,
+    enquiry.draft,
+    enquiry.category,
+  ).run();
+  return { analysis, applied: update.meta.changes > 0 };
+}
 async function availability(arrival: string, departure: string, guests: number) {
   const dates = stayDates(arrival, departure);
   integer(guests, 1, 4);
@@ -314,27 +361,42 @@ export async function handle(request: Request, path: string) {
         Date.now() - 600000,
       );
       if (count.n >= 8) return fail('Please wait before submitting another enquiry.', 429);
-      const c = classify(message),
-        e = extract(message),
-        id = 'ENQ-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+      const id = 'ENQ-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+      const initial = fallbackAnalysis(name, message, 'processing');
       await q(
-        'INSERT INTO enquiries(id,name,email,message,channel,category,confidence,owner,extracted,draft,status,alert,created) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO enquiries(id,name,email,message,channel,category,confidence,owner,extracted,draft,status,alert,created,ai_provider,ai_status,ai_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id,
         name,
         address,
         message,
         channel,
-        c.category,
-        c.confidence,
-        c.owner,
-        JSON.stringify(e),
-        draftReply(name, c.category, e),
+        initial.category,
+        initial.confidence,
+        initial.owner,
+        JSON.stringify(initial.extracted),
+        initial.draft,
         'new',
-        c.alert,
+        initial.alert,
         Date.now(),
+        'local-fallback',
+        'processing',
+        'Saved before AI processing; requires review if processing is interrupted.',
       ).run();
+      const { analysis } = await finishAnalysis({
+        id,
+        name,
+        message,
+        category: initial.category,
+        draft: initial.draft,
+        status: 'new',
+        alert: initial.alert,
+      });
       return json(
-        { id, message: 'Your enquiry is with our team. Replies are reviewed by a person.' },
+        {
+          id,
+          aiStatus: analysis.state,
+          message: 'Your enquiry is with our team. Replies are reviewed by a person.',
+        },
         201,
       );
     }
@@ -425,7 +487,34 @@ export async function handle(request: Request, path: string) {
     if (method === 'GET' && path === 'inbox')
       return json({
         enquiries: await rows('SELECT * FROM enquiries ORDER BY alert DESC, created DESC'),
+        ai: aiConfig(),
       });
+    if (method === 'POST' && path === 'inbox/analyze') {
+      const old = await first('SELECT * FROM enquiries WHERE id=?', text(body.id));
+      if (!old) return fail('Enquiry not found.', 404);
+      if (old.status === 'sent') return fail('Sent replies cannot be regenerated.', 409);
+      if (!aiConfig().configured)
+        return fail(
+          'Gemini is not configured. Add GEMINI_API_KEY on the server, then restart or redeploy.',
+          503,
+        );
+      const claim = await q(
+        "UPDATE enquiries SET ai_status='processing',ai_reason='Gemini analysis requested by staff.' WHERE id=? AND ai_status!='processing' AND status=? AND draft=? AND category=?",
+        old.id,
+        old.status,
+        old.draft,
+        old.category,
+      ).run();
+      if (!claim.meta.changes)
+        return fail('This enquiry is already processing or was edited. Refresh the inbox.', 409);
+      const result = await finishAnalysis(old);
+      await audit(
+        u.id,
+        'gemini-analysis',
+        JSON.stringify({ id: old.id, applied: result.applied, state: result.analysis.state }),
+      );
+      return json({ ok: true, applied: result.applied, aiStatus: result.analysis.state });
+    }
     if (method === 'PATCH' && path === 'inbox') {
       const b = body,
         old = await first('SELECT * FROM enquiries WHERE id=?', text(b.id));
@@ -438,7 +527,7 @@ export async function handle(request: Request, path: string) {
       // Complaint escalation is sticky even after staff re-route it.
       await db().batch([
         q(
-          'UPDATE enquiries SET category=?,owner=?,draft=?,status=?,alert=? WHERE id=?',
+          "UPDATE enquiries SET category=?,owner=?,draft=?,status=?,alert=?,ai_status=CASE WHEN ai_status='processing' THEN 'needs-review' ELSE ai_status END WHERE id=?",
           b.category,
           (owners as Record<string, string>)[b.category],
           draft,

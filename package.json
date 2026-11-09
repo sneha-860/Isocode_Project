@@ -9,14 +9,15 @@
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "node scripts/run-framework.mjs dev",
     "build": "node scripts/run-framework.mjs build",
-    "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
+    "start": "node scripts/preview.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test tests/domain.test.mjs",
+    "test": "node --test tests/domain.test.mjs tests/gemini.test.mjs",
+    "test:gemini:live": "node scripts/check-gemini.mjs",
     "test:integration": "node tests/integration.mjs",
     "test:browser": "node tests/browser-qa.mjs",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write app lib/service.ts lib/domain.mjs db/schema.ts tests"
+    "format": "prettier --write app lib/service.ts lib/domain.mjs lib/gemini.mjs db/schema.ts tests scripts/preview.mjs scripts/check-gemini.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

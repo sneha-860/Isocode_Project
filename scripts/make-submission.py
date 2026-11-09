@@ -2,6 +2,7 @@
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 from html import escape
+import json
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor, white
@@ -79,10 +80,10 @@ chapter('02','One application. One source of truth.')
 p('React and TypeScript run on the supplied Vinext/Vite starter. A Cloudflare Worker serves the UI and same-origin API. Cloudflare D1 supplies transactional SQLite storage. Drizzle defines the schema and generates migrations; explicit bound SQL makes the booking transaction and trigger behavior easy to inspect.')
 table(['Layer','Choice and reason'],[
  ['Presentation','React state drives a compact multi-screen experience. Custom CSS, Lucide icons and local assets provide a consistent visual system. No external font or image host is required at runtime.'],
- ['Application','lib/service.ts centralizes authentication, authorization, validation and orchestration. lib/domain.mjs contains independently testable pricing, date, classifier and template logic.'],
+ ['Application','lib/service.ts owns authentication, authorization, persistence and orchestration. lib/gemini.mjs implements the server-only provider client, schema/evidence validation and fallback. lib/domain.mjs retains pricing, dates and local safeguards.'],
  ['Persistence','D1 binding DB; foreign keys, unique keys, transactional batch writes and inventory triggers. No process-memory booking records or browser-local database.'],
  ['Hosting','Sites provisions the Worker and D1 and applies versioned migrations before the matching build. Its source remote is separate from the public GitHub project.'],
- ['Automation','Local multinomial Naive Bayes inference, regex extraction, category/owner mapping and constrained reply templates. Predictable behavior without an external model dependency.']
+ ['Automation','Gemini generateContent REST with structured JSON output. Default gemini-3.5-flash-lite, configurable on the server. Local complaint checks, deterministic team ownership, evidence validation and template fallback keep decisions reviewable.']
 ],[95,395])
 heading('Request flow')
 p('<b>Guest browser</b> &rarr; availability API &rarr; nightly inventory + occupied-night counts &rarr; server-computed quote &rarr; authenticated booking API &rarr; atomic booking/night batch &rarr; confirmation record.')
@@ -111,7 +112,7 @@ p('Money uses integer paise. GST is rounded per nightly line: 5% at or below Rs 
 p('A declined test payment makes no booking writes. Real money would require expiring holds, a gateway-intent lifecycle, signed webhooks and reconciliation; this build makes no claim to solve those provider races.','SmallCopy')
 
 chapter('04','Useful intelligence, with an honest boundary.')
-p('The automation actually runs for every new enquiry, including the supplied samples. It is a small English-language statistical classifier, not a hosted LLM. The twelve authored training utterances are visible in lib/domain.mjs and cover four categories. Tokenization, Laplace-smoothed word likelihoods and normalized log scores select the category. Fewer than two recognized words or a top score below 70 sends the enquiry to Unsorted; explicit wedding/offsite conflicts also require review.')
+p('New enquiries call Google Gemini from the backend when GEMINI_API_KEY is configured. The default model is gemini-3.5-flash-lite, overridable with GEMINI_MODEL. The API key stays in a server secret and request header. The response must match a JSON Schema: category, self-reported confidence, needsReview, extracted details with exact message evidence, and an unsent draft. Zod validates the actual returned object; provider schema support alone is not trusted.')
 table(['Brief sample','Result / extracted facts'],[
  ['ENQ-4410: sister\'s wedding, Feb 2027, 250 guests, 2 nights','Wedding -> Events team; Feb 2027, 250 guests and 2 nights.'],
  ['ENQ-4411: villa, 14–16 Nov, 2 adults and a child','Room booking -> Reservations; 14–16 Nov, 2 adults and 1 child. No year is invented.'],
@@ -119,13 +120,13 @@ table(['Brief sample','Result / extracted facts'],[
  ['Additional synthetic examples','A dirty-room complaint always alerts GM. An unspecified special request is Unsorted -> GM review.']
 ],[250,240])
 heading('Extraction and safe reply drafts')
-p('Regex extraction preserves date text, guest/adult and child counts, budget text and nights. Null means not found, never a fabricated value. Templates acknowledge the request and ask for exact dates/year or missing details. No draft quotes a price; this avoids inventing a tariff and leaves formal pricing with live availability. Staff can edit the complete draft. No provider call sends the message.')
+p('Extracted dates and budgets must match exact evidence substrings; numeric values must occur as digits or simple number words in their evidence. Unsupported values become null and require human review. The villa sample keeps 2 adults and 1 child separate; no total or year is inferred. Drafts are checked for detected prices, booking confirmations, links and sensitive-data requests. Unsafe output falls back to a local template. Formal prices remain database-controlled, and no draft is sent automatically.')
 heading('When it is wrong or unsure')
-bullet('Low scores, unknown wording and selected conflicting intents go to the review lane, visible with GM attention. Model scores are explicitly uncalibrated, not percentages of real-world accuracy.')
+bullet('Confidence below 0.7, explicit uncertainty or unsupported extracted facts enter Unsorted. Scores are model self-reports, not calibrated accuracy. Every result still needs staff verification.')
 bullet('Complaint keywords override room/event intent and set a persistent alert. Staff re-routing never silently removes that alert. Alerts are in-app; no external GM notification is claimed.')
 bullet('Staff select a corrected category, see the mapped owner immediately, edit and save. Approve & simulate send requires an explicit approval flag in the server request and records an audit event.')
 heading('Known limits and next evaluation')
-p('English-only keywords, a tiny training set, no learned date normalization, no calibrated confidence and no measured held-out accuracy. Negation, multilingual text, adversarial repetition and compound intents can be wrong. Complaint-keyword coverage is not a guarantee of complete complaint detection. Before launch, label a representative historical set, measure per-class precision/recall and review rate, prioritize complaint recall, and tune thresholds using held-out data. Staff corrections are retained, but do not retrain this demo automatically.')
+p('The enquiry is saved before inference. Missing keys, 12-second timeouts, quota/network errors, blocked or invalid responses produce local review drafts; there is no automatic retry. An atomic SQL reservation limits the app to 30 provider calls/hour. Staff can explicitly regenerate unsent samples; edits made during inference win. Historical seed records stay labelled local until regenerated. Prompt injection, subtle hallucinations and incomplete contact redaction remain risks; no multilingual or held-out accuracy claim is made.')
 
 chapter('05','Design the stay, then get out of its way.')
 shot('01-home-desktop.png','Guest home at 1440px. A single booking task, a restrained forest palette and locally served photography.',260)
@@ -151,7 +152,8 @@ p('Staff can inspect all confirmed bookings and download a safely escaped CSV fo
 chapter('07','Evidence over a happy-path demo.')
 table(['Check','Verified result'],[
  ['TypeScript / production build','npm run typecheck and npm run build pass. The built Worker serves the app locally.'],
- ['Domain + real SQLite triggers','8 tests pass: supplied categories/extraction, ambiguous routing, complaint override, constrained templates, tariff threshold/rounding, date validation, stock rejection and rollback, stale rates, blackouts and allotment caps.'],
+ ['Domain + real SQLite triggers','8 tests cover supplied local samples, complaint override, templates, tariff rounding, date validity, atomic stock rollback, stale rates, blackouts and allotment caps.'],
+ ['Gemini mocked-provider tests','13 additional tests cover header-only keys, contact redaction, structured/evidence validation, uncertainty, complaint overrides, unsafe output, schema failures, quota/auth/network errors and timeout fallback. These are not live-model tests.'],
  ['API integration','Actual local Worker + D1: 8 concurrent attempts for the last room yield 1 confirmed booking and 7 conflicts. Identical retry returns the same reference.'],
  ['API security and errors','Guest/staff login, register-as-guest, 401/403, cross-guest booking isolation, key misuse, declined payment, stale total, stock reduction rejection, sticky complaint alert, approval gate, staff CSV and cross-origin rejection pass.'],
  ['Real Chrome UI','1440px desktop and 390px phone checks: registration through confirmation/history, staff inbox/rates/review filter. No detected JS exceptions or horizontal overflow. Screenshots saved locally.']
@@ -160,9 +162,9 @@ heading('Basic security controls')
 p('All SQL uses bound parameters. Input text lengths, email shape, integers, date validity, room capacities, role permissions and current prices are checked server-side. Bodies are consumed and validated before access rejection; invalid JSON or oversized payloads fail. Cross-origin mutations are rejected. Passwords use unique salts and 100,000 PBKDF2-SHA256 iterations; random session tokens are hashed in storage and sent as HttpOnly, SameSite cookies, with Secure on HTTPS and 24-hour expiry.')
 p('New registrations cannot create staff. Login attempts are durably throttled per address. HTML renders user content as text, and CSV cells are quoted and protected from leading spreadsheet formula characters. Database failures return generic customer messages. Environment files, local databases, deployment credentials and browser profiles are ignored by Git.')
 heading('What the tests do not prove')
-p('The load test is small and local; no long-running production load, provider webhook, backup restore, penetration test, screen-reader test or multilingual model evaluation is claimed. Browser tests create synthetic records; integration tests require a fresh disposable fixture and must never target live data. Public demo credentials intentionally permit evaluation, not production security.')
+p('The load test is small and local; no long-running production load, provider webhook, backup restore, penetration test, screen-reader test or multilingual accuracy evaluation is claimed. Tests use synthetic data and disposable booking dates. Public demo credentials intentionally permit evaluation, not production security.')
 heading('Privacy boundary')
-p('No real personal data is seeded; no card or passport details are collected. The public demo requests fictional details. Enquiry inference stays inside the app. A real deployment still requires approved notices, a designated privacy contact, retention/deletion operations, access review and incident handling. This document does not claim completed DPDP compliance.')
+p('Only synthetic data is seeded; no card/passport details are collected. With Gemini enabled, enquiry text goes to Google after basic contact redaction; account contact fields are excluded. Redaction is not full anonymization. The form discloses processing and requests fictional data. Real use requires provider terms, approved consent, retention/deletion and incident operations. No DPDP compliance claim is made.')
 
 chapter('08','Ship the core. Name the next risks.')
 heading('Delivery and reproducibility')
@@ -171,7 +173,7 @@ heading('Explicit assumptions: evaluation and operations')
 table(['ID','Assumption / limitation'],[
  ['A7','Public demo logins are intentional; registration is unverified. No password recovery or staff invitation workflow is included.'],
  ['A8','Payments are synchronous test outcomes. Incoming/outgoing emails, WhatsApp and reservation-system delivery are simulated; no real message is sent.'],
- ['A9','Replies are template automation; the classifier is a small local English model. Team ownership and GM attention are in-app fields, not external notifications.'],
+ ['A9','Gemini is used only when a server key is configured. Local templates are explicit fallbacks, not disguised live AI. Team ownership and GM attention are application fields, not external notifications.'],
  ['A10','The app is owner-private on Sites; public GitHub and local setup enable review. Public guest hosting requires an intentional sharing change.'],
  ['A11','GST is implemented as 5% up to Rs 7,500 per unit/night and 18% above, with tax rounded nightly in paise. The resort must validate its actual tax treatment before commercial launch.'],
  ['A12','Booking business dates use UTC day validation; browser defaults use the visitor date. Indian-property timezone boundaries need harmonizing before launch.']
@@ -186,6 +188,15 @@ heading('Tax implementation references')
 p('The brief asks for GST at the rate applicable to the tariff. The following primary sources were used only to verify that implementation; no new client requirements were inferred.')
 p('<b>Ministry of Finance / PIB.</b> Frequently Asked Questions 2 on decisions of the 56th GST Council, 16 September 2025. Describes the 5% treatment for accommodation up to Rs 7,500 per unit/day. <link href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2167151">Read the official FAQ</link>.')
 p('<b>CBIC.</b> Goods and services rate schedule, Heading 9963: accommodation tariff bands and standard rate. <link href="https://cbic-gst.gov.in/hindi/gst-goods-services-rates.html">Read the official schedule</link>. Rates are implemented in price() and checked at the exact threshold in the domain tests. Commercial tax treatment still needs resort validation.')
+heading('Gemini API references and live verification')
+p('Google: <link href="https://ai.google.dev/gemini-api/docs/structured-output">structured JSON output</link>, <link href="https://ai.google.dev/api/generate-content">generateContent reference</link>, and <link href="https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</link>. These inform the provider adapter, not client scope. The regular test suite mocks provider responses; the separate live check uses a real configured key and three synthetic brief enquiries. API usage can consume quota or incur charges. Secret values are never included in the ZIP.')
+live_report=OUT/'gemini-live-check.json'
+if live_report.exists():
+    report=json.loads(live_report.read_text())
+    if report.get('verified'):
+        p('Recorded live verification: all three synthetic brief enquiries returned the expected categories through '+escape(report.get('model','Gemini'))+'. This is a three-fixture integration check, not a measured accuracy benchmark.','SmallCopy')
+    else:
+        p('Live provider verification is not recorded as passing in this generated copy; configure the key and run npm run test:gemini:live.','SmallCopy')
 heading('A practical five-minute review')
 table(['Action','What to inspect'],[
  ['1. Find a stay','Choose dates, inspect room capacity, nightly prices and the total with GST.'],

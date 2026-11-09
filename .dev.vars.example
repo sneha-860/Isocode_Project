@@ -1,0 +1,4 @@
+# Copy this file to .dev.vars and add your key locally. Never commit .dev.vars.
+GEMINI_API_KEY=
+# Optional. Leave blank to use the application default.
+GEMINI_MODEL=

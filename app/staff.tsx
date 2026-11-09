@@ -16,6 +16,19 @@ import {
   Check,
 } from 'lucide-react';
 import { api, post, categoryClass, ErrorBox, Empty, date, human, money, content } from './shared';
+const aiReasons: Record<string, string> = {
+  'not-configured': 'Gemini is not configured. Review this enquiry manually.',
+  'authentication-failed':
+    'Gemini could not authenticate. Check the server key and review manually.',
+  'rate-limited': 'The Gemini quota was reached. Review manually or try again later.',
+  'provider-error': 'Gemini is unavailable. Your enquiry is saved for review.',
+  'network-error': 'Gemini could not be reached. Your enquiry is saved for review.',
+  timeout: 'Gemini took too long. A safe draft is saved for review.',
+  'invalid-response': 'Gemini returned an unsupported response. A safe draft is saved for review.',
+  'invalid-model': 'The configured model is invalid. Check the server configuration.',
+  'blocked-or-incomplete': 'Gemini did not complete this response. Review manually.',
+  'request-limit': 'The demo AI request limit was reached. Review manually or retry later.',
+};
 export function InboxView({ notify }: any) {
   const [data, setData] = useState<any[]>([]),
     [active, setActive] = useState(''),
@@ -28,12 +41,14 @@ export function InboxView({ notify }: any) {
     [busy, setBusy] = useState(false),
     [simulate, setSimulate] = useState(false),
     [channel, setChannel] = useState('Email'),
-    [incoming, setIncoming] = useState('');
+    [incoming, setIncoming] = useState(''),
+    [ai, setAi] = useState<any>(null);
   const load = useCallback(async () => {
     setError('');
     try {
       const b = await api('inbox');
       setData(b.enquiries);
+      setAi(b.ai);
       setActive((a) => a || b.enquiries[0]?.id || '');
     } catch (e: any) {
       setError(e.message);
@@ -90,6 +105,19 @@ export function InboxView({ notify }: any) {
           <Plus size={16} /> Simulate incoming
         </button>
       </div>
+      {ai && (
+        <div className="ai-status-banner" role="status">
+          <Sparkles size={18} />
+          <div>
+            <strong>{ai.configured ? 'Gemini is configured' : 'Gemini key needed'}</strong>
+            <p>
+              {ai.configured
+                ? `${ai.model} · New enquiries use Gemini. Every draft still needs staff approval.`
+                : 'Add GEMINI_API_KEY to the server configuration. Enquiries are saved safely for human review until then.'}
+            </p>
+          </div>
+        </div>
+      )}
       <div className="stats-row">
         <div>
           <span>IN THE INBOX</span>
@@ -146,7 +174,10 @@ export function InboxView({ notify }: any) {
         >
           <div>
             <strong>Bring a message into the inbox</strong>
-            <p>Simulated forwarded email or WhatsApp. Routing runs on the server.</p>
+            <p>
+              Simulated channel delivery. With Gemini configured, the enquiry text is sent to Google
+              for analysis. Use fictional sample messages.
+            </p>
           </div>
           <label>
             Channel
@@ -292,14 +323,26 @@ export function InboxView({ notify }: any) {
                   <span>
                     <Sparkles size={15} /> ROUTING ASSISTANT
                   </span>
-                  <span className={'badge ' + (selected.confidence >= 70 ? 'green' : 'amber')}>
-                    {selected.confidence}% model score
+                  <span
+                    className={'badge ' + (selected.ai_provider === 'gemini' ? 'green' : 'amber')}
+                  >
+                    {selected.ai_provider === 'gemini'
+                      ? 'Gemini'
+                      : selected.ai_status === 'processing'
+                        ? 'Processing'
+                        : selected.ai_provider === 'local-fallback'
+                          ? 'Fallback · review'
+                          : 'Local sample'}
                   </span>
                 </div>
                 <div className="routing-controls">
                   <label>
                     Category
-                    <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <select
+                      disabled={busy}
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
                       {[
                         'Room booking',
                         'Wedding',
@@ -339,14 +382,55 @@ export function InboxView({ notify }: any) {
                     ))}
                 </div>
                 <p className="routing-footnote">
-                  Local text classifier · verify extracted fields
-                  {selected.category === 'Unsorted' ? ' · unsure, needs human review' : ''}
+                  {selected.ai_provider === 'gemini'
+                    ? `${selected.ai_model} · ${selected.confidence}% self-reported confidence, not measured accuracy.`
+                    : 'Local template and extraction; no Gemini result is claimed.'}{' '}
+                  Verify every extracted field.
+                </p>
+                <p className="routing-footnote">
+                  {aiReasons[selected.ai_reason] || selected.ai_reason}
+                </p>
+                <button
+                  className="button outline ai-rerun"
+                  disabled={
+                    busy ||
+                    !ai?.configured ||
+                    selected.status === 'sent' ||
+                    draft !== selected.draft ||
+                    category !== selected.category
+                  }
+                  onClick={async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const result = await post('inbox/analyze', { id: active });
+                      await load();
+                      notify(
+                        !result.applied
+                          ? 'A staff edit was preserved. Refresh to review it.'
+                          : result.aiStatus === 'fallback'
+                            ? 'Gemini could not complete this request. A review fallback was saved.'
+                            : 'Gemini analysis saved. Review the route and reply below.',
+                      );
+                    } catch (e: any) {
+                      setError(e.message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <Sparkles size={14} /> {busy ? 'Working…' : 'Regenerate draft with Gemini'}
+                </button>
+                <p className="routing-footnote">
+                  Save edits before regenerating. This replaces the unsent draft and route. If
+                  processing was interrupted, save a manual review before retrying.
                 </p>
               </div>
               <div className="draft-heading">
                 <h3>Make the first reply count.</h3>
                 <span>
-                  <Sparkles size={13} /> Suggested draft
+                  <Sparkles size={13} />{' '}
+                  {selected.ai_provider === 'gemini' ? 'Gemini-assisted draft' : 'Template draft'}
                 </span>
               </div>
               <label className="sr-only" htmlFor="draft">
@@ -355,6 +439,7 @@ export function InboxView({ notify }: any) {
               <textarea
                 id="draft"
                 className="draft-editor"
+                disabled={busy}
                 rows={7}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
