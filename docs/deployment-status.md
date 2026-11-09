@@ -1,23 +1,29 @@
 # Full-brief release deployment status
 
-Recorded on 9 November 2026.
+Confirmed on 9 November 2026.
 
-The complete implementation is verified locally: 29 automated tests, TypeScript/build, original and full-brief API suites, desktop/390px Chrome, three live Gemini fixtures, and real draft regeneration. The local launcher automatically started the unattended daily-export worker and generated/read back its durable CSV without a browser open.
+The complete implementation is deployed successfully at https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site. Access remains owner-private. The public repository and local setup support independent review.
 
-Features include booking and tax, immutable plan/promo snapshots, daily rates/allotment/blackouts, atomic room and promo limits, structured event enquiries, Gemini routing/drafts/fallback, one-click correction, GM acknowledgement/history and daily export generation with simulated reservation-system import.
+## Verified release
 
-## Hosting
+- Source commit: `b3712dda1f35efd950803ca62d713a950a69fc43`.
+- Site: `appgprj_6af18bbab52c81918657adf657cb7568`.
+- Saved version: `appgprj_6af18bbab52c81918657adf657cb7568~appgver_107fb85c333081919a5fb43f61ec7064` (version 3).
+- Successful deployment: `appgdep_6af202928a3c8191a70f9e2d1e5cef68`, runtime environment revision 2.
+- Native publication status: `succeeded` at 17:28 UTC / 22:58 India time.
+- Hosted GET `/api/plans`: HTTP 200, two seeded plans.
+- Hosted protected POST `/api/jobs/daily-export`: HTTP 200; durable readback for `2026-11-08`, zero bookings, delivery `simulated`.
 
-Site project: `appgprj_6af18bbab52c81918657adf657cb7568`.
+Local verification passed 29 automated tests, TypeScript/build, original and full-brief API suites, desktop/390px Chrome, three real Gemini fixtures and real draft regeneration. The local launcher also started its unattended export worker without a browser.
 
-Owner-private URL: https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site.
+Booking, plans/promos, rates/allotment/blackouts, atomic room and promo limits, structured enquiries, Gemini routing/drafts/fallback, one-click correction, GM acknowledgement and daily CSV snapshots are implemented. External payments, messaging and reservation-system delivery remain simulated as the brief permits.
 
-Hosted runtime revision 2 includes the Gemini and export secrets, plus owner-private export automation settings. No values are recorded here. Publication of the complete release is being verified separately. No hosted cloud schedule has been claimed as active until its writer readback and schedule creation pass.
+## Daily cloud schedule
 
-Earlier Gemini-only version 2 failed publication after an account concurrency limit and generic “Failed to publish the built site.” Last historical failed deployment: `appgdep_6af1ed39ff948191bb2c87afecd1f810`. It is not the complete release. No application-code cause was established from runtime logs.
+Linked automation: `Automation_c650acd00a208191a799229152646bfe`, **Prepare Mora Estate daily booking export**.
 
-Use the local setup for review unless a later confirmed publication/readback result is recorded below. Never broaden sharing to make a job work. A future public deployment must disable private-boundary automation and require explicit job-secret authentication.
+Enabled: yes. Timing: daily at 06:00 `Asia/Kolkata`. The protected writer was exercised through its intended Sites service access and returned the persisted result before scheduling. The first scheduled occurrence has not yet run; saving the schedule is not evidence of a scheduled execution. Local and hosted databases are separate.
 
-## Unattended export
+The writer is idempotent by completed India date. Zero-booking days have valid CSVs. Staff can download snapshots under Bookings > Daily handoff. Normal runs do not republish the app. Instructions are recorded in `.openai/daily-export.md`; no credentials are stored there or in the task prompt.
 
-Source instructions: `.openai/daily-export.md`. Local startup and `npm run exports:watch` run the same protected writer at 06:00 Asia/Kolkata. HTTP writer and stored CSV readback have passed locally. A hosted schedule must use supported Site service access and be created only after publication and actual writer verification. The backend is idempotent by completed India date, so retries cannot duplicate imports. Delivery remains simulated as required by the brief.
+Earlier version-2 publication failures are superseded by this successful full release. Preserve owner-private access. A future public deployment must disable private-boundary automation and require explicit job-secret authentication before scheduling again.

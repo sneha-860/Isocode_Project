@@ -6,7 +6,7 @@ Sites address: https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site
 
 The Sites deployment is owner-private. A reviewer can run the complete app locally; a public GitHub repository does not grant access to a private Sites app.
 
-**Full-brief release status (9 November 2026):** booking, plans/promos, the Gemini inbox, GM review and daily exports pass local verification, including 29 automated tests, end-to-end APIs, Chrome desktop/phone checks and real Gemini calls. The local background export worker is verified. Hosted publication and cloud-schedule activation must be confirmed separately; see `docs/deployment-status.md` for the current result and recovery identifiers. Earlier hosted attempts encountered platform publication failures; do not infer that the hosted URL runs the latest source simply because the repository is updated.
+**Full-brief release status (9 November 2026):** the complete release is deployed successfully, from commit `b3712dda1f35efd950803ca62d713a950a69fc43`. Local verification includes 29 automated tests, end-to-end API suites, Chrome desktop/phone checks and real Gemini calls. Hosted rate plans and the protected daily-export writer both returned HTTP 200; the writer persisted/read back the 8 November snapshot. The linked cloud schedule is enabled for 06:00 Asia/Kolkata. Its first scheduled occurrence has not yet run. See `docs/deployment-status.md` for identifiers.
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ If a brand-new cloned repository has no lockfile, run `npm install`; the publish
 5. Run `npm run test:gemini:live` to make three synthetic calls. A missing key reports SKIPPED; provider or fixture failures report failure. No API key is printed.
 6. Sign in as staff. The inbox shows whether Gemini is configured. Submit a new enquiry or choose an unsent seeded record and click **Regenerate draft with Gemini**. Seed records remain clearly labelled as local until this action runs.
 
-For an existing installation from the first build, stop the preview, pull updates, run `npm run build`, and apply only the new `0002_supreme_lionheart.sql` migration. Do not replay earlier migrations. Then restart the preview.
+For an existing installation from the first build, stop the preview, pull updates, run `npm run build`, and apply each unapplied migration in order: `0002_supreme_lionheart.sql`, `0003_petite_ironclad.sql`, then `0004_commerce_guards.sql`. Do not replay earlier migrations. Then restart the preview.
 
 The default model is `gemini-3.5-flash-lite`; confirm availability for your Google project. Requests use the supported `generateContent` REST endpoint with JSON Schema output. The API key is sent only in the request header, not a URL or browser bundle. Actual API usage may consume quota or incur provider charges.
 
@@ -128,7 +128,7 @@ To run the protected job immediately:
 npm run exports:daily
 ```
 
-For hosted automation, the supported Sites cloud schedule invokes the private writer described in `.openai/daily-export.md`. Activate it only after successful publication and writer readback. The schedule must be at 06:00 Asia/Kolkata and use service access fetched for this exact private Site; no credentials belong in the task prompt or source. The writer returns the stored date and count. The same date is idempotent. A public deployment must instead use explicit job-secret authentication; never broaden sharing to make an unattended task work. See `docs/deployment-status.md` for the actual hosted activation state.
+For hosted automation, the supported Sites cloud schedule invokes the private writer described in `.openai/daily-export.md`. It is enabled following successful publication and writer readback on 9 November 2026. The schedule must be at 06:00 Asia/Kolkata and use service access fetched for this exact private Site; no credentials belong in the task prompt or source. The writer returns the stored date and count. The same date is idempotent. A public deployment must instead use explicit job-secret authentication; never broaden sharing to make an unattended task work. See `docs/deployment-status.md` for the actual hosted activation state.
 
 For a prior local checkout, apply only migrations that have not already been applied: `0003_petite_ironclad.sql` and `0004_commerce_guards.sql` add the full-brief features after Gemini. Schema migrations preserve historical bookings; unknown legacy tax breakdowns are left blank in exports rather than reconstructed from current prices.
 
