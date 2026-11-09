@@ -129,3 +129,14 @@ npm run exports:daily
 ```
 
 For hosted automation on this public deployment, POST `{}` to `/api/jobs/daily-export` with `Authorization: Bearer <EXPORT_JOB_SECRET>` supplied securely by the scheduler environment. The secret is never part of source, browser code or a schedule prompt. `PRIVATE_EXPORT_AUTOMATION` is disabled in hosted runtime revision 3. The previous owner-private Sites task deliberately stops if it detects public access, so it does not provide scheduled public updates. A separately configured secret-bearing scheduler is required for unattended hosted execution. Local automatic execution and authenticated staff snapshot generation/download continue to work. See `docs/deployment-status.md`.
+
+For a prior local checkout, apply only migrations that have not already been applied: `0003_petite_ironclad.sql` and `0004_commerce_guards.sql` add the full-brief features after Gemini. Schema migrations preserve historical bookings; unknown legacy tax breakdowns are left blank in exports rather than reconstructed from current prices.
+
+## Recreate the requested ZIP
+
+```sh
+python -m pip install reportlab
+python scripts/make-submission.py
+```
+
+Output: `outputs/Mora-Estate-Submission.zip`, containing exactly `Mora-Estate-TDD.pdf` and `deployment.md`. Screenshot inclusion uses `outputs/qa` when browser QA has run. The generator does not include code, runtime records, credentials or other files in the ZIP.
