@@ -6,6 +6,8 @@ A direct-booking experience for the hill-resort brief, with a working reservatio
 
 **Sites address:** https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site (owner-private; use local setup for independent review).
 
+The Gemini integration is verified locally and published in this repository. The hosted update encountered a publication failure; the address above is the previous confirmed release. See [deployment status](docs/deployment-status.md). The local app uses the configured Gemini key now.
+
 ## Review in five minutes
 
 Follow [deployment.md](deployment.md), then open the local app.

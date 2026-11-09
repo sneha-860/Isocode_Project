@@ -6,6 +6,8 @@ Sites address: https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site
 
 The Sites deployment is owner-private. A reviewer can run the complete app locally; a public GitHub repository does not grant access to a private Sites app.
 
+**Gemini release status (9 November 2026):** the integration passed three live Google API fixtures, local API tests and real browser regeneration. The new hosted release could not be confirmed: publication first hit an account concurrency limit, then returned “Failed to publish the built site.” The previous hosted release remains the last confirmed version. Use the local setup to review Gemini. The hosted key is already stored as a secret in environment revision 1; saved Sites version 2 can be retried without re-entering it. See `docs/deployment-status.md` in the repository for recovery identifiers.
+
 ## Prerequisites
 
 Node.js 24 LTS (the SQLite test runner uses `node:sqlite`), npm, Git, and an internet connection for dependency installation. Windows, macOS or Linux. A Gemini API key and available quota are required for live AI processing; without a key, the booking app still works and enquiries enter human review with safe local drafts. Google Chrome is optional for browser checks. Python 3 with ReportLab is optional to rebuild the submission PDF/ZIP.
