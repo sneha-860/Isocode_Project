@@ -1,12 +1,13 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Mora Estate | A slower kind of stay",
-  description: "Find your quiet in the coffee hills of Chikkamagaluru. Rooms, suites and private villas, booked directly.",
+  title: 'Mora Estate | A slower kind of stay',
+  description:
+    'Find your quiet in the coffee hills of Chikkamagaluru. Rooms, suites and private villas, booked directly.',
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
   },
 };
 
