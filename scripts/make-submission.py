@@ -20,11 +20,11 @@ LINE = HexColor('#dde3d6')
 styles = getSampleStyleSheet()
 styles.add(ParagraphStyle('Hero', fontName='Times-Roman', fontSize=39, leading=43, textColor=INK, spaceAfter=20))
 styles.add(ParagraphStyle('Chapter', fontName='Times-Roman', fontSize=26, leading=30, textColor=INK, spaceAfter=18))
-styles.add(ParagraphStyle('Sub', fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=INK, spaceBefore=17, spaceAfter=8))
-styles.add(ParagraphStyle('Copy', fontName='Helvetica', fontSize=10, leading=15.4, textColor=INK, spaceAfter=10))
+styles.add(ParagraphStyle('Sub', fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=INK, spaceBefore=14, spaceAfter=7))
+styles.add(ParagraphStyle('Copy', fontName='Helvetica', fontSize=9.6, leading=14, textColor=INK, spaceAfter=8))
 styles.add(ParagraphStyle('SmallCopy', fontName='Helvetica', fontSize=8, leading=11.5, textColor=MUTED, spaceAfter=8))
 styles.add(ParagraphStyle('Label', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=MUTED, spaceAfter=15, charSpace=1))
-styles.add(ParagraphStyle('Cell', fontName='Helvetica', fontSize=8.4, leading=12, textColor=INK))
+styles.add(ParagraphStyle('Cell', fontName='Helvetica', fontSize=8.2, leading=11.6, textColor=INK))
 story=[]
 def p(s,style='Copy'): story.append(Paragraph(s,styles[style]))
 def heading(s): p(s,'Sub')
@@ -34,7 +34,7 @@ def chapter(n,s):
 def table(headers, data, widths):
     cells=[[Paragraph(escape(str(c)),styles['Cell']) for c in row] for row in [headers]+data]
     t=Table(cells,colWidths=widths,hAlign='LEFT',repeatRows=1)
-    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),HexColor('#e9eee1')),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LINEBELOW',(0,0),(-1,-1),.5,LINE)]))
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),HexColor('#e9eee1')),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7.5),('BOTTOMPADDING',(0,0),(-1,-1),7.5),('LINEBELOW',(0,0),(-1,-1),.5,LINE)]))
     story.append(t);story.append(Spacer(1,12))
 def shot(file,caption,max_height=280):
     path=ROOT/'outputs'/'qa'/file
