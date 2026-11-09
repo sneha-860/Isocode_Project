@@ -181,7 +181,22 @@ p('Promo codes, additional meal/rate plans, bulk date editing, cancellations/ref
 heading('Next seven-week production path (planning assumption)')
 p('Weeks 1–2: validate room inventory/policies, approve photography and tariffs, harden identity and guest privacy. Weeks 3–4: gateway holds, signed webhooks and reconciliation with repeatable concurrency tests. Week 5: verified message adapters and real GM escalation. Week 6: consent/retention, backup restore and performance/accessibility checks. Week 7: staff pilot, stock reconciliation and monitored release. Budget/time in the brief are constraints, not spend or delivery already achieved.')
 p('<b>Sources and provenance.</b> Requirements and commercial figures: supplied Company A brief. All invented brand/content/rates/policies/technical decisions are assumptions identified here. Photography provenance is in docs/asset-credits.md; images do not depict Company A. AI assistance accelerated implementation and tests; no measured business outcome is inferred from the demo.','SmallCopy')
-p('GST verification: Ministry of Finance / PIB, FAQ 2 on the 56th GST Council, 16 September 2025: <link href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2167151">official FAQ</link>; standard accommodation rate: <link href="https://cbic-gst.gov.in/hindi/gst-goods-services-rates.html">CBIC rate schedule</link>. Used only to verify the tariff-based implementation, not to expand client scope.','SmallCopy')
+chapter('09','Reference and review route.')
+heading('Tax implementation references')
+p('The brief asks for GST at the rate applicable to the tariff. The following primary sources were used only to verify that implementation; no new client requirements were inferred.')
+p('<b>Ministry of Finance / PIB.</b> Frequently Asked Questions 2 on decisions of the 56th GST Council, 16 September 2025. Describes the 5% treatment for accommodation up to Rs 7,500 per unit/day. <link href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2167151">Read the official FAQ</link>.')
+p('<b>CBIC.</b> Goods and services rate schedule, Heading 9963: accommodation tariff bands and standard rate. <link href="https://cbic-gst.gov.in/hindi/gst-goods-services-rates.html">Read the official schedule</link>. Rates are implemented in price() and checked at the exact threshold in the domain tests. Commercial tax treatment still needs resort validation.')
+heading('A practical five-minute review')
+table(['Action','What to inspect'],[
+ ['1. Find a stay','Choose dates, inspect room capacity, nightly prices and the total with GST.'],
+ ['2. Test both payments','Use the guest demo account. Decline once, then confirm. Check the booking reference and saved account record.'],
+ ['3. Check stock','Sign in as staff. Compare sold and available stock for an occupied night. Try lowering allotment below the sold count.'],
+ ['4. Review the inbox','Inspect the three supplied samples, complaint alert and Unsorted message. Edit and re-route; explicitly approve a simulated send.'],
+ ['5. Add a new message','Simulate an incoming email/WhatsApp or use Gather here. See fresh inference and persistent records, then download the booking CSV.']
+],[120,370])
+heading('Reproduce the evidence')
+p('deployment.md gives the exact setup and test commands. Domain tests use in-memory SQLite with the real committed triggers. Integration tests use the running local Worker/D1 and mutate a disposable fixture. Browser checks use actual headless Chrome at desktop and phone widths. Screenshots are illustrative verification evidence, not a substitute for trying the flows.')
+p('The ZIP intentionally includes two files only. The repository contains readable source, migrations, tests, the document generator and image provenance. No private credentials, local sessions or test database files are included.','SmallCopy')
 
 def footer(canvas,doc):
     canvas.setStrokeColor(LINE);canvas.line(48,43,547,43)
