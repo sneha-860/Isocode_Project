@@ -24,9 +24,12 @@ Follow [deployment.md](deployment.md), then open the local app.
 - React + TypeScript using the supplied Vinext/Vite starter; a Cloudflare Worker serves UI and API.
 - Cloudflare D1 / SQLite persists accounts, opaque sessions, nightly inventory, reservations, enquiries and audit events.
 - Atomic booking batches and SQL triggers enforce capacity, blackout, unchanged rates and every-night stock.
+- Guests choose a rate plan and one promo. Admins edit inclusions, nightly supplements, percentage discounts, validity, minimum nights and redemption limits. A last-redemption race cannot spend the same promo twice.
 - Gemini classifies enquiries, extracts grounded details and drafts replies through a server-only REST call. Set `GEMINI_API_KEY` in ignored `.dev.vars` to enable it locally. The configurable default model is `gemini-3.5-flash-lite`. Model confidence is self-reported and uncalibrated.
 - Missing keys, timeouts, quota/provider failures and invalid output produce a local template in the human-review lane. Complaints still alert the GM. Seed records retain their local-sample label until staff explicitly regenerate them with Gemini.
 - Roles are enforced in the API; guests can read only their own bookings. New accounts are always guests.
+- A separate GM account sees uncertain enquiries and persistent complaint alerts, acknowledges them and retains escalation history. Quick-route buttons persist a correction in one click.
+- Daily India-time CSV snapshots are stored in D1 and imported into a simulated reservation-system handoff. The local preview starts a background export scheduler automatically; hosted scheduling uses the protected writer in `.openai/daily-export.md`.
 
 ## Source map
 
@@ -54,6 +57,7 @@ npm run test:gemini:live
 npm run build
 # With the local built server running on port 4173:
 npm run test:integration
+npm run test:brief
 npm run test:browser
 ```
 
@@ -69,6 +73,12 @@ Add `GEMINI_API_KEY` separately as a secret in the hosted Sites environment, the
 
 ## Deliberate limits
 
-One room per booking, one breakfast rate plan, stays of 1–14 nights within 180 days. The brand, room split, capacities, inventory, tariffs, policies and imagery are labelled demo assumptions in the TDD. No channel manager, real payment gateway, message delivery, cancellation/refund, promo code or bulk rate editor. GM alerts are persistent queue flags visible to reservations; a separate GM login is not implemented in this two-role core slice.
+One room per booking, stays of 1–14 nights within 180 days, and one percentage promo per booking. The brand, room split, capacities, starting tariffs, full-board supplement, promo terms, policies, export time and imagery are labelled assumptions in the TDD. Booking, pricing/allotment/promo administration, the Gemini enquiry inbox, structured event form, GM review and daily export are implemented. Real payments, message delivery and reservation-system delivery remain simulated, as the brief permits. Channel-manager replacement, loyalty and restaurant bookings remain out of scope; cancellation/refund and bulk inventory editing are extra features not included in the brief's required slice.
+
+## GM and daily operations
+
+Use `gm@mora.test` / `GMDemo2026!`, or the **Use GM account** button, for the GM attention queue. New registrations cannot choose this role. Acknowledgement preserves the complaint flag and audit history; re-escalation opens GM attention again.
+
+`npm start -- --port 4173` starts the local server and a separate background daily-export worker at 06:00 Asia/Kolkata, even with no browser open. It creates an ignored job secret without changing your Gemini key. `npm run exports:daily` exercises the same protected writer immediately; `npm run exports:watch` can run it independently with a server already running. Staff can prepare any completed day and download its CSV under **Bookings → Daily handoff**. Re-running a day returns its original snapshot. Hosted schedule activation and publication status are tracked in `docs/deployment-status.md`.
 
 This is an evaluation deployment with public demo credentials. A real launch needs staff provisioning, verified guest accounts/password recovery, abuse protection, payment webhooks and reconciliation, privacy/retention operations, backups, monitoring, classifier evaluation on actual enquiries, and client-approved rates, policies and photography.

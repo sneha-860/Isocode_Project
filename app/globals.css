@@ -7,6 +7,239 @@
   --line: #e0e4da;
   --serif: Georgia, 'Times New Roman', serif;
 }
+.quick-route {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+.quick-route > span {
+  font-size: 9px;
+  display: block;
+  width: 100%;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.quick-route > .badge {
+  font-size: 9px;
+  padding: 6px 8px;
+  border: 1px solid #dce3d0;
+  white-space: normal;
+  text-align: left;
+}
+.quick-route > .badge:hover {
+  filter: brightness(0.96);
+}
+.stay-options {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 35px;
+  margin: 20px 0 28px;
+  padding: 22px;
+  background: #f0f2e8;
+  border: 1px solid var(--line);
+}
+.stay-options label {
+  font-size: 11px;
+  min-width: 0;
+}
+.stay-options small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 7px;
+}
+.stay-options form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stay-options form label {
+  flex: 1;
+  min-width: 100px;
+}
+.stay-options form .button {
+  font-size: 10px;
+  margin-top: 20px;
+  white-space: nowrap;
+}
+.stay-options .text-link {
+  margin-top: 20px;
+  font-size: 9px;
+}
+.promo-savings {
+  font-size: 10px !important;
+  color: #627848 !important;
+  margin-top: 12px;
+  min-height: 0 !important;
+}
+.offer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.offer-card {
+  border: 1px solid var(--line);
+  background: white;
+  padding: 23px;
+}
+.offer-card fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.offer-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.offer-card label {
+  font-size: 11px;
+}
+.offer-card input,
+.offer-card textarea {
+  font-size: 12px;
+}
+.offer-card small {
+  display: block;
+  font-size: 9px;
+}
+.offer-card .checkbox-label {
+  font-size: 11px;
+}
+.offer-card fieldset:disabled {
+  opacity: 0.7;
+}
+.offer-card input:disabled {
+  background: #f1f3eb;
+  color: #849177;
+}
+.daily-exports {
+  margin-top: 42px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  background: #f1f3e9;
+}
+.daily-exports > .rates-heading {
+  margin-top: 0;
+}
+.daily-exports > p {
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 680px;
+}
+.export-controls {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  margin: 25px 0;
+}
+.export-controls label {
+  max-width: 230px;
+  font-size: 11px;
+}
+.export-controls .button {
+  font-size: 11px;
+}
+.export-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 17px 0;
+  border-top: 1px solid #dce2d2;
+  gap: 15px;
+}
+.export-list strong {
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+}
+.export-list span {
+  font-size: 10px;
+  color: var(--muted);
+  display: block;
+  margin-top: 5px;
+}
+.export-notice {
+  background: #e6eedb;
+  padding: 14px 18px;
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.gm-ack {
+  font-size: 11px;
+  margin: 0 0 20px;
+}
+.demo-accounts > div {
+  flex-wrap: wrap;
+}
+.desk-sidebar nav > button {
+  white-space: normal;
+}
+@media (max-width: 800px) {
+  .desk-sidebar nav {
+    flex-wrap: wrap;
+  }
+  .offer-grid {
+    grid-template-columns: 1fr;
+  }
+  .stay-options {
+    gap: 20px;
+    grid-template-columns: 1fr;
+  }
+  .stay-options form .button {
+    margin-top: 14px;
+  }
+}
+@media (max-width: 580px) {
+  .stay-options {
+    padding: 18px;
+    margin-top: 18px;
+  }
+  .stay-options form {
+    gap: 10px;
+  }
+  .stay-options select,
+  .stay-options input {
+    font-size: 12px;
+  }
+  .stay-options form .button {
+    font-size: 10px;
+    padding: 13px 12px;
+    min-height: 43px;
+  }
+  .offer-card {
+    padding: 20px;
+  }
+  .export-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .export-controls label {
+    max-width: none;
+  }
+  .daily-exports {
+    padding: 20px;
+  }
+  .export-list > div {
+    flex-wrap: wrap;
+  }
+  .desk-title > .button-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .desk-title > .button-row .button {
+    font-size: 10px;
+    min-height: 37px;
+    padding: 11px;
+  }
+}
 .ai-status-banner {
   display: flex;
   align-items: flex-start;

@@ -47,6 +47,14 @@ export const bookings = sqliteTable('bookings', {
   departure: text('departure').notNull(),
   guests: integer('guests').notNull(),
   total: integer('total').notNull(),
+  planId: text('plan_id').notNull().default('standard'),
+  planName: text('plan_name').notNull().default('Breakfast included'),
+  planAdjustment: integer('plan_adjustment').notNull().default(0),
+  promoCode: text('promo_code'),
+  discountPercent: integer('discount_percent').notNull().default(0),
+  subtotal: integer('subtotal'),
+  discount: integer('discount').notNull().default(0),
+  tax: integer('tax'),
   requestKey: text('request_key').notNull().unique(),
   created: integer('created').notNull(),
 });
@@ -61,6 +69,8 @@ export const nights = sqliteTable(
       .references(() => rooms.id),
     date: text('date').notNull(),
     rate: integer('rate').notNull(),
+    netRate: integer('net_rate'),
+    tax: integer('tax'),
   },
   (t) => [primaryKey({ columns: [t.bookingId, t.date] })],
 );
@@ -77,6 +87,8 @@ export const enquiries = sqliteTable('enquiries', {
   draft: text('draft').notNull(),
   status: text('status').notNull().default('new'),
   alert: integer('alert').notNull().default(0),
+  gmAcknowledgedAt: integer('gm_acknowledged_at'),
+  gmAcknowledgedBy: text('gm_acknowledged_by'),
   aiProvider: text('ai_provider').notNull().default('legacy-local'),
   aiModel: text('ai_model'),
   aiStatus: text('ai_status').notNull().default('legacy'),
@@ -91,4 +103,27 @@ export const audit = sqliteTable('audit', {
   action: text('action').notNull(),
   detail: text('detail').notNull(),
   created: integer('created').notNull(),
+});
+export const ratePlans = sqliteTable('rate_plans', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  adjustment: integer('adjustment').notNull().default(0),
+  active: integer('active').notNull().default(1),
+});
+export const promos = sqliteTable('promos', {
+  code: text('code').primaryKey(),
+  percent: integer('percent').notNull(),
+  validFrom: text('valid_from').notNull(),
+  validUntil: text('valid_until').notNull(),
+  minNights: integer('min_nights').notNull().default(1),
+  maxUses: integer('max_uses').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const dailyExports = sqliteTable('daily_exports', {
+  date: text('date').primaryKey(),
+  csv: text('csv').notNull(),
+  count: integer('count').notNull(),
+  created: integer('created').notNull(),
+  delivery: text('delivery').notNull().default('simulated'),
 });

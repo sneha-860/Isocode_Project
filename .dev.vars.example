@@ -2,3 +2,5 @@
 GEMINI_API_KEY=
 # Optional. Leave blank to use the application default.
 GEMINI_MODEL=
+# Optional job credential. npm run setup:local generates this locally.
+EXPORT_JOB_SECRET=

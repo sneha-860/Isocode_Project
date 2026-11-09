@@ -48,7 +48,7 @@ def bullet(s): p('&#8226; '+s)
 p(f'<b>GitHub URL:</b> <link href="{REPO}" color="#294b3d">{REPO}</link>','SmallCopy')
 p(f'<b>App URL:</b> <link href="{LIVE}" color="#294b3d">{LIVE}</link>','SmallCopy')
 p('App access: owner-private Sites deployment. Independent reviewers can run the full app locally. See deployment.md.','SmallCopy')
-p('Gemini is verified locally. The updated hosted release encountered a publication failure; the URL is the previous confirmed release. See deployment.md for current limitations.','SmallCopy')
+p('The complete feature set is verified locally, including real Gemini calls. See deployment.md and the repository deployment-status record for confirmed hosting and cloud-schedule activation.','SmallCopy')
 story.append(Spacer(1,32));p('MORA ESTATE  /  09 NOVEMBER 2026','Label')
 p('A slower stay.<br/>A faster first reply.','Hero')
 p('Technical Design Document','Sub')
@@ -58,7 +58,7 @@ table(['Core slice','Working behavior'],[
  ['Guest booking','Availability, room detail, account, itemized GST, successful/declined test payment, confirmation and saved bookings.'],
  ['Stock administration','Date-specific rates, website allotment and blackout controls; cannot reduce stock below confirmed nights.'],
  ['Enquiry operations','Three-channel inbox, server-side classifier/extractor, assigned team, editable draft, re-route, approval and simulated send.'],
- ['Optional depth','Structured event form, guest registration, complaint queue, audit events, CSV booking export and print confirmation.']
+ ['Completed wider scope','Rate plans, promo administration, structured event form, GM queue/acknowledgement, one-click routing, daily CSV snapshots and background export worker.']
 ],[117,373])
 p('Reader guide: 1 Product choices; 2 Architecture; 3 Data & stock; 4 Automation; 5 Guest design; 6 Staff design; 7 Validation & security; 8 Delivery & next steps.','SmallCopy')
 
@@ -73,8 +73,8 @@ table(['ID','Assumption (not established by the client brief)'],[
  ['A2','The 64 rooms split into 40 Estate Rooms and 24 Canopy Suites, plus the specified 12 villas. Capacities are 3, 3 and 4 people, including children.'],
  ['A3','Starting nightly tariffs are Rs 7,500 / 9,500 / 16,500 before GST, with a Rs 1,000 Friday/Saturday uplift. Default website allotments are 8 / 5 / 3.'],
  ['A4','One room per booking; 1–14 nights; a rolling 180-day horizon. Breakfast is included; no extra-person fee or child pricing. Check-in 2 pm, check-out 11 am.'],
- ['A5','One standard plan. Staff manage one day at a time. Blackout closes that occupied night to new sale, without cancelling existing bookings.'],
- ['A6','Team assignments are Reservations, Events team, Sales team and GM review. Two actual roles are guest and reservations staff; a separate GM account is deferred.']
+ ['A5','Two seeded plans: breakfast and full board, with editable supplements and inclusions. Staff manage inventory one day at a time. Blackout closes occupied nights to new sale without cancelling confirmations.'],
+ ['A6','Team assignments are Reservations, Events team, Sales team and GM review. Actual roles are guest, reservations staff and GM; new registrations can only become guests.']
 ],[35,455])
 
 chapter('02','One application. One source of truth.')
@@ -98,9 +98,9 @@ table(['Entity','Important fields and relationships'],[
  ['users / sessions','User email unique; salted PBKDF2 hash; server-assigned role. Session stores SHA-256 token digest, user FK and expiry.'],
  ['rooms','Three types, physical-key cap, person capacity, default rate and default website allotment.'],
  ['inventory','Composite PK (room_id, date); rate in integer paise, website allotment and blackout.'],
- ['bookings','Reference PK, user/room FK, arrival/departure, guest count, total paise, unique request_key and timestamp.'],
- ['nights','Composite PK (booking_id, date); room/date indexed for stock counts; booked nightly rate snapshot.'],
- ['enquiries','Raw message/channel, classification/model score, extracted JSON, owner, draft, status and sticky GM alert.'],
+ ['bookings','Reference, guest/room FK, dates/count, immutable plan/promo, subtotal/discount/GST/total paise snapshots, unique request key and timestamp.'],
+ ['nights','Composite PK (booking_id, date), indexed room/date counts, base/net tariff and GST snapshots. Triggers guard stock and quote consistency.'],
+ ['enquiries','Raw message/channel, AI provenance, extracted JSON, owner/draft/status, sticky GM alert and acknowledgement actor/time.'],
  ['audit','Actor, action, details and timestamp for rate changes, enquiry approval and login throttling.']
 ],[100,390])
 heading('The invariant')
@@ -142,22 +142,32 @@ p('Responsive grids collapse to one column on phones. Native inputs, associated 
 
 chapter('06','A desk built around the next action.')
 shot('05-inbox-desktop.png','Reservations desk at desktop width. Inbox context, routing, extracted facts and editable reply share one working surface.',280)
-p('The guest brand continues into the desk, with a persistent three-item navigation: enquiries, rates/allotment and bookings. Restrained category colors, channel markers and status badges provide useful signals; there are no fabricated conversion metrics.')
+p('The guest brand continues into the desk: enquiries, rates/allotment, plans/promos and bookings, plus a dedicated GM attention view. Restrained category colors, channel markers and status badges provide useful signals; there are no fabricated conversion metrics.')
 heading('Inbox workflow')
 p('Open a message, verify facts, correct the category if necessary, edit the draft, then save or explicitly approve the simulated send. The review filter includes Unsorted and sticky complaint alerts. Search matches reference, name and message. Email/WhatsApp ingress is simulated through an actual server action rather than precomputed UI labels.')
 heading('Daily inventory workflow')
 p('Choose a date. Each room type shows its physical-key cap, editable rate/allotment, sold and remaining stock, and tax-inclusive price. A blackout stops new sales for that night. Validation errors preserve entered values; successful writes immediately affect subsequent guest searches. Existing confirmations survive edits. Multi-date/bulk editing is intentionally deferred.')
 heading('Booking book')
-p('Staff can inspect all confirmed bookings and download a safely escaped CSV for reservation-system handoff. Guests see only their own bookings. Automated daily delivery is not implemented; this manual export is the optional depth in this slice.')
+p('Staff inspect confirmed bookings and download CSVs; guests see only their own records. Completed-day snapshots are stored by India creation date with plan, promo and tax fields. Background export generation runs without an open browser; reservation-system delivery is explicitly simulated.')
+
+chapter('06B','Complete the daily work, too.')
+shot('10-plans-promos.png','Rate-plan and promo administration: editable inclusions, supplements, validity and redemption limits.',235)
+heading('Commercial terms are guarded at commit')
+p('rate_plans stores inclusions, supplement and on-sale state; promos stores code, percentage, occupied-night validity, minimum stay and booking cap. Guests select them before checkout. Booking snapshots preserve original terms after later admin edits. SQL triggers re-check plan/promo state and count redemptions inside the booking transaction, alongside every-night stock guards.')
+heading('Explicit added assumptions: A13 and A14')
+p('A13: full board adds Rs 2,500 per room/night for all booked guests. MORA10 gives 10% off a minimum two-night stay, capped at 100 bookings and valid for the seeded horizon. Admins may change these illustrative terms. One percentage code applies before nightly GST; the discounted package tariff determines the band. Real commercial tax treatment needs resort approval.')
+p('A14: daily_exports stores one immutable CSV per completed India booking-creation day, including empty days. Generation is due at 06:00 Asia/Kolkata. The local launcher starts a background worker automatically; hosted scheduling uses the protected HTTP writer and a Sites cloud task after publication/readback. Repeated runs reuse the file. Reservation-system import is simulated.')
+heading('GM acknowledgement and one-click correction')
+p('The GM signs in separately and sees all escalations, pending counts and acknowledgement history. Only this role can acknowledge an alert. Acknowledgement does not erase complaint history. Quick-route buttons change category/owner immediately; re-escalation opens attention again. Draft editing stays separate from routing and external send approval.')
 
 chapter('07','Evidence over a happy-path demo.')
 table(['Check','Verified result'],[
  ['TypeScript / production build','npm run typecheck and npm run build pass. The built Worker serves the app locally.'],
- ['Domain + real SQLite triggers','8 tests cover supplied local samples, complaint override, templates, tariff rounding, date validity, atomic stock rollback, stale rates, blackouts and allotment caps.'],
+ ['Domain + real SQLite triggers','16 domain/SQL tests cover stock and quote rollback, plan/promo snapshots, final-redemption limits, GST rounding, India dates and idempotent daily CSV snapshots, plus the original classifier/date safeguards.'],
  ['Gemini mocked-provider tests','13 additional tests cover header-only keys, contact redaction, structured/evidence validation, uncertainty, complaint overrides, unsafe output, schema failures, quota/auth/network errors and timeout fallback. These are not live-model tests.'],
- ['API integration','Actual local Worker + D1: 8 concurrent attempts for the last room yield 1 confirmed booking and 7 conflicts. Identical retry returns the same reference.'],
- ['API security and errors','Guest/staff login, register-as-guest, 401/403, cross-guest booking isolation, key misuse, declined payment, stale total, stock reduction rejection, sticky complaint alert, approval gate, staff CSV and cross-origin rejection pass.'],
- ['Real Chrome UI','1440px desktop and 390px phone checks: registration through confirmation/history, staff inbox/rates/review filter. No detected JS exceptions or horizontal overflow. Screenshots saved locally.']
+ ['API integration','Actual Worker/D1: last-room race gives 1 success and 7 conflicts; last-promo race gives 1 redemption. Stale plan prices fail; retries preserve the reference.'],
+ ['API security and errors','Guest/staff/GM access, guest isolation, declined payment, quote changes, stock guards, one-click routing, GM-only acknowledgement, approval gate, protected export job/CSV and origin rejection pass.'],
+ ['Real Chrome UI','Desktop/390px Chrome: full-board promo booking through confirmation, staff rates/offers/daily exports, live Gemini regeneration and GM acknowledgement. No detected JS errors or mobile overflow.']
 ],[118,372])
 heading('Basic security controls')
 p('All SQL uses bound parameters. Input text lengths, email shape, integers, date validity, room capacities, role permissions and current prices are checked server-side. Bodies are consumed and validated before access rejection; invalid JSON or oversized payloads fail. Cross-origin mutations are rejected. Passwords use unique salts and 100,000 PBKDF2-SHA256 iterations; random session tokens are hashed in storage and sent as HttpOnly, SameSite cookies, with Secure on HTTPS and 24-hour expiry.')
@@ -165,7 +175,7 @@ p('New registrations cannot create staff. Login attempts are durably throttled p
 heading('What the tests do not prove')
 p('The load test is small and local; no long-running production load, provider webhook, backup restore, penetration test, screen-reader test or multilingual accuracy evaluation is claimed. Tests use synthetic data and disposable booking dates. Public demo credentials intentionally permit evaluation, not production security.')
 heading('Privacy boundary')
-p('Only synthetic data is seeded; no card/passport details are collected. With Gemini enabled, enquiry text goes to Google after basic contact redaction; account contact fields are excluded. Redaction is not full anonymization. The form discloses processing and requests fictional data. Real use requires provider terms, approved consent, retention/deletion and incident operations. No DPDP compliance claim is made.')
+p('Only synthetic guest data is seeded. Gemini receives contact-redacted enquiry text, excluding account fields; redaction is not full anonymization. The form discloses processing. Real launch needs approved provider/privacy terms, consent, retention/deletion and incident operations. No DPDP compliance claim is made.')
 
 chapter('08','Ship the core. Name the next risks.')
 heading('Delivery and reproducibility')
@@ -177,18 +187,19 @@ table(['ID','Assumption / limitation'],[
  ['A9','Gemini is used only when a server key is configured. Local templates are explicit fallbacks, not disguised live AI. Team ownership and GM attention are application fields, not external notifications.'],
  ['A10','The app is owner-private on Sites; public GitHub and local setup enable review. Public guest hosting requires an intentional sharing change.'],
  ['A11','GST is implemented as 5% up to Rs 7,500 per unit/night and 18% above, with tax rounded nightly in paise. The resort must validate its actual tax treatment before commercial launch.'],
- ['A12','Booking business dates use UTC day validation; browser defaults use the visitor date. Indian-property timezone boundaries need harmonizing before launch.']
+ ['A12','All booking defaults, server date validation and export-day boundaries use Asia/Kolkata. Daily exports cover the previous completed India creation day at 06:00.']
 ],[35,455])
 heading('Cuts, in order of intention')
-p('Promo codes, additional meal/rate plans, bulk date editing, cancellations/refunds, temporary payment holds, real payment integration, gateway reconciliation, live messaging, channel-manager synchronization, automatic daily export delivery and a separate GM role are deferred. Loyalty, restaurants and replacement of the reservation system remain out of scope.')
+p('All requested booking, rate/allotment/promo administration, AI inbox, structured enquiry and daily export features are implemented. External payments, messaging and reservation-system handoff remain simulated as permitted. Bulk editing, cancellations/refunds and real gateway reconciliation are extra launch scope. Loyalty, restaurants and replacement of the reservation system remain excluded.')
 heading('Next seven-week production path (planning assumption)')
-p('Weeks 1–2: validate room inventory/policies, approve photography and tariffs, harden identity and guest privacy. Weeks 3–4: gateway holds, signed webhooks and reconciliation with repeatable concurrency tests. Week 5: verified message adapters and real GM escalation. Week 6: consent/retention, backup restore and performance/accessibility checks. Week 7: staff pilot, stock reconciliation and monitored release. Budget/time in the brief are constraints, not spend or delivery already achieved.')
+p('Weeks 1–2: validate room inventory/policies, approve photography and tariffs, harden identity and guest privacy. Weeks 3–4: gateway holds, signed webhooks and reconciliation with repeatable concurrency tests. Week 5: verified message adapters and external on-call notifications. Week 6: consent/retention, backup restore and performance/accessibility checks. Week 7: staff pilot, stock reconciliation and monitored release. Budget/time in the brief are constraints, not spend or delivery already achieved.')
 p('<b>Sources and provenance.</b> Requirements and commercial figures: supplied Company A brief. All invented brand/content/rates/policies/technical decisions are assumptions identified here. Photography provenance is in docs/asset-credits.md; images do not depict Company A. AI assistance accelerated implementation and tests; no measured business outcome is inferred from the demo.','SmallCopy')
 chapter('09','Reference and review route.')
 heading('Tax implementation references')
 p('The brief asks for GST at the rate applicable to the tariff. The following primary sources were used only to verify that implementation; no new client requirements were inferred.')
 p('<b>Ministry of Finance / PIB.</b> Frequently Asked Questions 2 on decisions of the 56th GST Council, 16 September 2025. Describes the 5% treatment for accommodation up to Rs 7,500 per unit/day. <link href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2167151">Read the official FAQ</link>.')
 p('<b>CBIC.</b> Goods and services rate schedule, Heading 9963: accommodation tariff bands and standard rate. <link href="https://cbic-gst.gov.in/hindi/gst-goods-services-rates.html">Read the official schedule</link>. Rates are implemented in price() and checked at the exact threshold in the domain tests. Commercial tax treatment still needs resort validation.')
+p('Discount valuation: <link href="https://cbic-gst.gov.in/hindi/sectoral-faq.html">CBIC sectoral FAQs, Section 15(3)</link>. Invoice-recorded before-supply discounts are excluded from taxable value; promo reductions and tax are stored explicitly in the booking.','SmallCopy')
 heading('Gemini API references and live verification')
 p('Google: <link href="https://ai.google.dev/gemini-api/docs/structured-output">structured JSON output</link>, <link href="https://ai.google.dev/api/generate-content">generateContent reference</link>, and <link href="https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</link>. These inform the provider adapter, not client scope. The regular test suite mocks provider responses; the separate live check uses a real configured key and three synthetic brief enquiries. API usage can consume quota or incur charges. Secret values are never included in the ZIP.')
 live_report=OUT/'gemini-live-check.json'
@@ -208,7 +219,6 @@ table(['Action','What to inspect'],[
 ],[120,370])
 heading('Reproduce the evidence')
 p('deployment.md gives the exact setup and test commands. Domain tests use in-memory SQLite with the real committed triggers. Integration tests use the running local Worker/D1 and mutate a disposable fixture. Browser checks use actual headless Chrome at desktop and phone widths. Screenshots are illustrative verification evidence, not a substitute for trying the flows.')
-p('The ZIP intentionally includes two files only. The repository contains readable source, migrations, tests, the document generator and image provenance. No private credentials, local sessions or test database files are included.','SmallCopy')
 
 def footer(canvas,doc):
     canvas.setStrokeColor(LINE);canvas.line(48,43,547,43)

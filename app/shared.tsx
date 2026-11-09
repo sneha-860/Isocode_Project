@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { day } from '../lib/domain.mjs';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -12,16 +13,12 @@ import {
   Leaf,
   X,
 } from 'lucide-react';
-export const date = (offset = 0) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+export const date = day;
 export const money = (n: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n / 100);
 export const human = (s: string) =>
   new Date(s + 'T00:00:00').toLocaleDateString('en-IN', {
@@ -178,9 +175,17 @@ export function PriceLines({ room }: any) {
   return (
     <div className="price-lines">
       <div>
-        <span>Room · breakfast included</span>
+        <span>{room.plan?.name || 'Room · breakfast included'}</span>
         <strong>{money(room.subtotal)}</strong>
       </div>
+      {room.discount > 0 && (
+        <div>
+          <span>
+            Promo {room.promo.code} · {room.promo.percent}%
+          </span>
+          <strong>−{money(room.discount)}</strong>
+        </div>
+      )}
       <div>
         <span>
           GST <small>(nightly tariff based)</small>
@@ -358,6 +363,16 @@ export function AuthModal({ onClose, onSuccess }: any) {
               Use staff account <ArrowUpRight size={14} />
             </button>
           </div>
+          <button
+            className="text-link"
+            onClick={() => {
+              setMode('login');
+              setEmail('gm@mora.test');
+              setPassword('GMDemo2026!');
+            }}
+          >
+            Use GM account <ArrowUpRight size={14} />
+          </button>
           <small>Public evaluation accounts. Sample data only.</small>
         </div>
       </section>

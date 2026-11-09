@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   CalendarDays,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { api, post, categoryClass, ErrorBox, Empty, date, human, money, content } from './shared';
 const aiReasons: Record<string, string> = {
@@ -29,7 +30,7 @@ const aiReasons: Record<string, string> = {
   'blocked-or-incomplete': 'Gemini did not complete this response. Review manually.',
   'request-limit': 'The demo AI request limit was reached. Review manually or retry later.',
 };
-export function InboxView({ notify }: any) {
+export function InboxView({ notify, gm = false, attentionOnly = false }: any) {
   const [data, setData] = useState<any[]>([]),
     [active, setActive] = useState(''),
     [filter, setFilter] = useState('All enquiries'),
@@ -66,14 +67,20 @@ export function InboxView({ notify }: any) {
       setDraft(selected.draft);
     }
   }, [selected]);
+  const needsAttention = (e: any) =>
+    (e.category === 'Unsorted' || !!e.alert) && !e.gm_acknowledged_at;
   const filtered = data.filter(
     (e) =>
+      (!attentionOnly || e.category === 'Unsorted' || e.alert) &&
       (filter === 'All enquiries' ||
-        (filter === 'Needs review' && (e.category === 'Unsorted' || e.alert)) ||
+        (filter === 'Needs review' && needsAttention(e)) ||
         (filter === 'Unreplied' && e.status !== 'sent') ||
         (filter === 'Sent' && e.status === 'sent')) &&
       `${e.id} ${e.name} ${e.message}`.toLowerCase().includes(query.toLowerCase()),
   );
+  useEffect(() => {
+    setActive((a) => (filtered.some((e) => e.id === a) ? a : filtered[0]?.id || ''));
+  }, [filter, query, data, attentionOnly]);
   const save = async (send = false) => {
     setBusy(true);
     setError('');
@@ -98,12 +105,27 @@ export function InboxView({ notify }: any) {
       <div className="desk-title">
         <div>
           <div className="eyebrow">A WARMER FIRST REPLY</div>
-          <h1>Every enquiry. One place.</h1>
-          <p>A little intelligence. A human touch.</p>
+          <h1>{attentionOnly ? 'The details that need you.' : 'Every enquiry. One place.'}</h1>
+          <p>
+            {attentionOnly
+              ? 'Complaints and uncertain enquiries, visible to the General Manager.'
+              : 'A little intelligence. A human touch.'}
+          </p>
         </div>
-        <button className="button" onClick={() => setSimulate(!simulate)}>
-          <Plus size={16} /> Simulate incoming
-        </button>
+        <div className="button-row">
+          <button
+            className="button outline"
+            disabled={
+              busy || (!!selected && (draft !== selected.draft || category !== selected.category))
+            }
+            onClick={load}
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+          <button className="button" onClick={() => setSimulate(!simulate)}>
+            <Plus size={16} /> Simulate incoming
+          </button>
+        </div>
       </div>
       {ai && (
         <div className="ai-status-banner" role="status">
@@ -139,10 +161,7 @@ export function InboxView({ notify }: any) {
         <div className="attention">
           <span>GM ATTENTION</span>
           <strong>
-            {data
-              .filter((e) => e.category === 'Unsorted' || e.alert)
-              .length.toString()
-              .padStart(2, '0')}
+            {data.filter(needsAttention).length.toString().padStart(2, '0')}
             <AlertCircle size={18} />
           </strong>
         </div>
@@ -214,9 +233,7 @@ export function InboxView({ notify }: any) {
           {['All enquiries', 'Needs review', 'Unreplied', 'Sent'].map((f) => (
             <button key={f} className={filter === f ? 'selected' : ''} onClick={() => setFilter(f)}>
               {f}
-              {f === 'Needs review' && (
-                <span>{data.filter((e) => e.category === 'Unsorted' || e.alert).length}</span>
-              )}
+              {f === 'Needs review' && <span>{data.filter(needsAttention).length}</span>}
             </button>
           ))}
         </div>
@@ -315,8 +332,36 @@ export function InboxView({ notify }: any) {
               {!!selected.alert && (
                 <div className="gm-alert">
                   <AlertCircle size={16} />
-                  <span>Complaint escalation · visible in the GM attention queue</span>
+                  <span>
+                    {selected.gm_acknowledged_at
+                      ? `GM reviewed this escalation on ${new Date(selected.gm_acknowledged_at).toLocaleDateString('en-IN')}`
+                      : 'Complaint escalation · visible in the GM attention queue'}
+                  </span>
                 </div>
+              )}
+              {gm && (selected.alert || selected.category === 'Unsorted') && (
+                <button
+                  className="button outline gm-ack"
+                  disabled={busy || !!selected.gm_acknowledged_at}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      await post('inbox/acknowledge', { id: selected.id });
+                      await load();
+                      notify(
+                        'GM acknowledgement recorded. The escalation stays in its audit history.',
+                      );
+                    } catch (e: any) {
+                      setError(e.message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <Check size={15} />
+                  {selected.gm_acknowledged_at ? 'Acknowledged by GM' : 'Acknowledge as GM'}
+                </button>
               )}
               <div className="routing-card">
                 <div className="routing-heading">
@@ -372,6 +417,35 @@ export function InboxView({ notify }: any) {
                   </div>
                 </div>
                 <div className="extracted-fields">
+                  <div className="quick-route">
+                    <span>One-click route</span>
+                    {['Room booking', 'Wedding', 'Corporate offsite', 'Complaint', 'Unsorted']
+                      .filter((c) => c !== selected.category)
+                      .map((c) => (
+                        <button
+                          key={c}
+                          className={'badge ' + categoryClass(c)}
+                          disabled={
+                            busy || draft !== selected.draft || category !== selected.category
+                          }
+                          onClick={async () => {
+                            setBusy(true);
+                            setError('');
+                            try {
+                              await post('inbox/route', { id: selected.id, category: c });
+                              await load();
+                              notify(`Routed to ${c}. Your reply draft is unchanged.`);
+                            } catch (e: any) {
+                              setError(e.message);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          Route to {c}
+                        </button>
+                      ))}
+                  </div>
                   {Object.entries(JSON.parse(selected.extracted))
                     .filter(([, v]) => v !== null)
                     .map(([k, v]) => (

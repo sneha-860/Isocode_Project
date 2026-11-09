@@ -36,13 +36,22 @@ import {
 } from './shared';
 import { Checkout, Bookings, EnquiryForm } from './guest';
 import { InboxView, Rates } from './staff';
+import { Offers } from './operations';
 export default function App() {
   const [view, setView] = useState('home'),
     [user, setUser] = useState<any>(null),
     [auth, setAuth] = useState(false),
     [authNext, setAuthNext] = useState(''),
     [menu, setMenu] = useState(false),
-    [stay, setStay] = useState({ arrival: date(5), departure: date(7), guests: 2 }),
+    [stay, setStay] = useState({
+      arrival: date(5),
+      departure: date(7),
+      guests: 2,
+      planId: 'standard',
+      promoCode: '',
+    }),
+    [plans, setPlans] = useState<any[]>([]),
+    [promoInput, setPromoInput] = useState(''),
     [rooms, setRooms] = useState<any[]>([]),
     [selected, setSelected] = useState<any>(null),
     [confirmation, setConfirmation] = useState<any>(null),
@@ -56,6 +65,16 @@ export default function App() {
   useEffect(() => {
     api('session')
       .then((b) => setUser(b.user))
+      .catch((e) => notify(e.message));
+    api('plans')
+      .then((b) => {
+        setPlans(b.plans);
+        setStay((s) =>
+          b.plans.some((p: any) => p.id === s.planId)
+            ? s
+            : { ...s, planId: b.plans[0]?.id || 'standard' },
+        );
+      })
       .catch((e) => notify(e.message));
   }, []);
   useEffect(() => {
@@ -72,7 +91,7 @@ export default function App() {
       setRooms(
         (
           await api(
-            `availability?arrival=${next.arrival}&departure=${next.departure}&guests=${next.guests}`,
+            `availability?arrival=${next.arrival}&departure=${next.departure}&guests=${next.guests}&planId=${encodeURIComponent(next.planId)}&promoCode=${encodeURIComponent(next.promoCode)}`,
           )
         ).rooms,
       );
@@ -94,7 +113,8 @@ export default function App() {
       setAuth(true);
     } else navigate('checkout');
   };
-  const staffView = user?.role === 'staff' && ['inbox', 'rates', 'reservations'].includes(view);
+  const isOperator = user && ['staff', 'gm'].includes(user.role);
+  const staffView = isOperator && ['inbox', 'rates', 'reservations', 'offers', 'gm'].includes(view);
   return (
     <div className={staffView ? 'app staff-app' : 'app'}>
       <div className="announcement">
@@ -128,7 +148,7 @@ export default function App() {
           >
             Gather here
           </button>
-          {user?.role === 'staff' && (
+          {isOperator && (
             <button className={staffView ? 'active' : ''} onClick={() => navigate('inbox')}>
               Reservations desk <span className="tiny-dot" />
             </button>
@@ -139,7 +159,9 @@ export default function App() {
             <>
               <button
                 className="account-link"
-                onClick={() => navigate(user.role === 'staff' ? 'inbox' : 'mybookings')}
+                onClick={() =>
+                  navigate(isOperator ? (user.role === 'gm' ? 'gm' : 'inbox') : 'mybookings')
+                }
               >
                 {user.name.split(' ')[0]} <ChevronDown size={13} />
               </button>
@@ -345,6 +367,58 @@ export default function App() {
             <div className="search-inline">
               <SearchBar stay={stay} onSearch={search} loading={loading} />
             </div>
+            <div className="stay-options">
+              <label>
+                Rate plan
+                <select
+                  aria-label="Rate plan"
+                  disabled={loading}
+                  value={stay.planId}
+                  onChange={(e) => search({ ...stay, planId: e.target.value })}
+                >
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.adjustment ? ` · +${money(p.adjustment)}/night` : ''}
+                    </option>
+                  ))}
+                </select>
+                <small>{plans.find((p) => p.id === stay.planId)?.description}</small>
+              </label>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  search({ ...stay, promoCode: promoInput.trim().toUpperCase() });
+                }}
+              >
+                <label>
+                  Direct-booking promo
+                  <input
+                    aria-label="Promo code"
+                    maxLength={24}
+                    value={promoInput}
+                    placeholder="e.g. MORA10"
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                  />
+                </label>
+                <button className="button outline" disabled={loading}>
+                  Apply code
+                </button>
+                {stay.promoCode && (
+                  <button
+                    className="text-link"
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setPromoInput('');
+                      search({ ...stay, promoCode: '' });
+                    }}
+                  >
+                    Remove code
+                  </button>
+                )}
+              </form>
+            </div>
             <div className="results-heading">
               <span>
                 {loading
@@ -390,17 +464,22 @@ export default function App() {
                       <p>{content[r.id].description}</p>
                       <div className="amenities">
                         <span>
-                          <Coffee size={14} /> Breakfast
+                          <Coffee size={14} /> {r.plan.name}
                         </span>
                         <span>
                           <Wifi size={14} /> Wi-Fi
                         </span>
                       </div>
+                      {r.discount > 0 && (
+                        <p className="promo-savings">
+                          {r.promo.code} saves {money(r.discount)} before GST
+                        </p>
+                      )}
                       <div className="result-price">
                         <div>
                           <strong>{money(r.total)}</strong>
                           <span>
-                            {money(r.subtotal)} + {money(r.tax)} GST / stay
+                            {money(r.subtotal - r.discount)} + {money(r.tax)} GST / stay
                           </span>
                         </div>
                         <span>{r.nights.length} nights</span>
@@ -546,6 +625,10 @@ export default function App() {
               <hr />
               <h3>{selected?.name}</h3>
               <p>
+                {confirmation.plan_name}
+                {confirmation.promo_code ? ` · Promo ${confirmation.promo_code}` : ''}
+              </p>
+              <p>
                 {human(confirmation.arrival)} — {human(confirmation.departure)}
               </p>
               <p>
@@ -582,7 +665,7 @@ export default function App() {
                 <span className="avatar">{user.name.charAt(0)}</span>
                 <div>
                   <strong>{user.name}</strong>
-                  <small>Reservations staff</small>
+                  <small>{user.role === 'gm' ? 'General Manager' : 'Reservations staff'}</small>
                 </div>
                 <span className="online-dot" />
               </div>
@@ -590,7 +673,9 @@ export default function App() {
                 {[
                   ['inbox', 'Enquiry inbox', Inbox],
                   ['rates', 'Rates & allotment', SlidersHorizontal],
+                  ['offers', 'Plans & promos', Flower2],
                   ['reservations', 'Bookings', BedDouble],
+                  ...(user.role === 'gm' ? [['gm', 'GM attention', ShieldCheck]] : []),
                 ].map(([id, label, Icon]: any) => (
                   <button
                     key={id}
@@ -616,10 +701,17 @@ export default function App() {
               </button>
             </aside>
             <section className="desk-main">
-              {view === 'inbox' ? (
-                <InboxView notify={notify} />
+              {view === 'inbox' || view === 'gm' ? (
+                <InboxView
+                  key={view}
+                  notify={notify}
+                  gm={user.role === 'gm'}
+                  attentionOnly={view === 'gm'}
+                />
               ) : view === 'rates' ? (
                 <Rates notify={notify} />
+              ) : view === 'offers' ? (
+                <Offers notify={notify} />
               ) : (
                 <Bookings staff onExplore={() => search()} />
               )}
@@ -726,11 +818,11 @@ export default function App() {
           onSuccess={(u: any) => {
             setUser(u);
             setAuth(false);
-            if (authNext === 'inbox' && u.role !== 'staff') {
+            if (authNext === 'inbox' && !['staff', 'gm'].includes(u.role)) {
               notify('Use the staff demo account for the reservations desk.');
               return;
             }
-            if (authNext) setView(authNext);
+            if (authNext) setView(u.role === 'gm' && authNext === 'inbox' ? 'gm' : authNext);
             notify(`Welcome, ${u.name.split(' ')[0]}.`);
           }}
         />

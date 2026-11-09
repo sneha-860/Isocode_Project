@@ -6,7 +6,7 @@ Sites address: https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site
 
 The Sites deployment is owner-private. A reviewer can run the complete app locally; a public GitHub repository does not grant access to a private Sites app.
 
-**Gemini release status (9 November 2026):** the integration passed three live Google API fixtures, local API tests and real browser regeneration. The new hosted release could not be confirmed: publication first hit an account concurrency limit, then returned “Failed to publish the built site.” The previous hosted release remains the last confirmed version. Use the local setup to review Gemini. The hosted key is already stored as a secret in environment revision 1; saved Sites version 2 can be retried without re-entering it. See `docs/deployment-status.md` in the repository for recovery identifiers.
+**Full-brief release status (9 November 2026):** booking, plans/promos, the Gemini inbox, GM review and daily exports pass local verification, including 29 automated tests, end-to-end APIs, Chrome desktop/phone checks and real Gemini calls. The local background export worker is verified. Hosted publication and cloud-schedule activation must be confirmed separately; see `docs/deployment-status.md` for the current result and recovery identifiers. Earlier hosted attempts encountered platform publication failures; do not infer that the hosted URL runs the latest source simply because the repository is updated.
 
 ## Prerequisites
 
@@ -22,6 +22,8 @@ npm run build
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_confused_boomer.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_inventory_guards.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_supreme_lionheart.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_petite_ironclad.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_commerce_guards.sql
 npm start -- --port 4173
 ```
 
@@ -54,8 +56,9 @@ Timeouts (12 seconds), authentication errors, quota errors, blocked/incomplete r
 |---|---|---|
 | Guest | `guest@mora.test` | `GuestDemo2026!` |
 | Reservations staff | `reservations@mora.test` | `StaffDemo2026!` |
+| General Manager | `gm@mora.test` | `GMDemo2026!` |
 
-The sign-in dialog can fill either account. New registration always creates a guest. Login is throttled to 12 attempts per email in ten minutes; wait before retrying if you reach the limit. Accounts are for evaluation only. Use fictional details and no real card or passport data.
+The sign-in dialog can fill any demo account. New registration always creates a guest. Login is throttled to 12 attempts per email in ten minutes; wait before retrying if you reach the limit. Accounts are for evaluation only. Use fictional details and no real card or passport data.
 
 ## Demo walkthrough
 
@@ -66,7 +69,9 @@ The sign-in dialog can fill either account. New registration always creates a gu
 5. Re-route with the category selector and save. **Approve & simulate send** records explicit approval; no external message leaves the app. Complaint alerts remain after re-routing.
 6. Simulate incoming email/WhatsApp or submit **Gather here** as a guest. Both create persistent enquiries and run classification.
 7. Change daily rates, website allotment or blackout in **Rates & allotment**. Stock cannot be lowered below confirmed bookings. Guest checkout rejects stale rates.
-8. View staff bookings and download the CSV. It exports the confirmed booking book; automated daily delivery to a reservation system is deferred.
+8. Use **Plans & promos** to edit plans or discount codes. Try `MORA10` for an eligible stay of at least two nights. A full-board plan is seeded; its tariff supplement and all promo terms are demo assumptions. Guests see the actual discount, taxable tariff and GST before payment.
+9. Use **Bookings → Daily handoff** to prepare a completed India-calendar day and download its durable CSV. It contains bookings created on that day, including plan, discount and tax snapshots. Empty days are valid; retries return the same file. Reservation-system delivery is simulated.
+10. Use the GM demo account for **GM attention**. Acknowledge a complaint or uncertain enquiry; the complaint flag remains in history. Staff can use a single quick-route button without changing the reply draft. Only the GM can acknowledge escalations.
 
 ## Tests
 
@@ -77,6 +82,7 @@ npm run test:gemini:live
 npm run build
 # Start the server in another terminal, using a fresh disposable database:
 npm run test:integration
+npm run test:brief
 # Optional, with Chrome installed:
 npm run test:browser
 ```
@@ -99,6 +105,11 @@ For a standalone Cloudflare deployment, create a D1 database, configure a real b
 - `CHROME_PATH` — optional browser test executable.
 - `TEST_BASE_URL` — optional integration-test endpoint.
 - `TEST_STAY_OFFSET` — optional disposable integration-test booking offset; defaults to 170 days.
+- `TEST_COMMERCE_OFFSET` — optional full-brief test booking offset; defaults to 100 days.
+- `UI_STAY_OFFSET` — optional browser-test stay offset; defaults to 40 days.
+- `EXPORT_JOB_SECRET` — protected export-writer credential. Generated automatically in ignored `.dev.vars` for local use; keep any hosted value secret.
+- `EXPORT_BASE_URL` — optional loopback endpoint for an independent local export scheduler; defaults to port 4173.
+- `PRIVATE_EXPORT_AUTOMATION` and `APP_ORIGIN` — hosted-only settings enabling the export writer behind a confirmed owner-private Sites access boundary. Do not enable this trust mode on a public Site.
 - `WRANGLER_SEND_METRICS` — optional hosting-tool telemetry setting.
 
 Payments, email, WhatsApp and reservation-system delivery are simulated. A real launch would add gateway and messaging credentials through the deployment secret store; those integrations and variables are not part of this build.
@@ -106,6 +117,20 @@ Payments, email, WhatsApp and reservation-system delivery are simulated. A real 
 Configure `GEMINI_API_KEY` with the Sites environment-variable tool or hosting settings and mark it secret, then deploy a saved version to apply that environment revision. The local `.dev.vars` file is not uploaded. Updating an environment variable alone does not update an already running saved deployment.
 
 When enabled, enquiry text is processed by Google. Names/emails from account fields are not sent; message text receives basic email/phone redaction. This is not complete anonymization. Use fictional data for review; a real launch needs suitable provider data terms, privacy notice, consent and retention decisions.
+
+## Daily export scheduling
+
+The local `npm start` launcher creates a job secret if needed, waits for the server, and starts a background worker. It generates the previous completed day's snapshot at 06:00 Asia/Kolkata without requiring an open browser. Keep the backend running. It retries failures and cannot duplicate an existing export. Stop the server and worker with Ctrl+C. Development hot reload with `npm run dev` does not start this background worker; use an independent `npm run exports:watch` with `EXPORT_BASE_URL` set to the local development port if needed.
+
+To run the protected job immediately:
+
+```sh
+npm run exports:daily
+```
+
+For hosted automation, the supported Sites cloud schedule invokes the private writer described in `.openai/daily-export.md`. Activate it only after successful publication and writer readback. The schedule must be at 06:00 Asia/Kolkata and use service access fetched for this exact private Site; no credentials belong in the task prompt or source. The writer returns the stored date and count. The same date is idempotent. A public deployment must instead use explicit job-secret authentication; never broaden sharing to make an unattended task work. See `docs/deployment-status.md` for the actual hosted activation state.
+
+For a prior local checkout, apply only migrations that have not already been applied: `0003_petite_ironclad.sql` and `0004_commerce_guards.sql` add the full-brief features after Gemini. Schema migrations preserve historical bookings; unknown legacy tax breakdowns are left blank in exports rather than reconstructed from current prices.
 
 ## Recreate the requested ZIP
 

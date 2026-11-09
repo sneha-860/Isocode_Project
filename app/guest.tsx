@@ -17,6 +17,7 @@ import {
   Coffee,
 } from 'lucide-react';
 import { content, api, post, money, human, date, PriceLines, ErrorBox, Empty } from './shared';
+import { DailyExports } from './operations';
 export function Checkout({ user, room, stay, onBack, onComplete, onRefresh }: any) {
   const [payment, setPayment] = useState('success'),
     [consent, setConsent] = useState(false),
@@ -177,16 +178,14 @@ export function Checkout({ user, room, stay, onBack, onComplete, onRefresh }: an
                 <div key={n.date}>
                   <span>
                     {human(n.date)}
-                    <small>GST {n.rate <= 750000 ? '5' : '18'}%</small>
+                    <small>GST {n.gst_percent}%</small>
                   </span>
-                  <strong>
-                    {money(n.rate + Math.round(n.rate * (n.rate <= 750000 ? 0.05 : 0.18)))}
-                  </strong>
+                  <strong>{money(n.net_rate + n.tax)}</strong>
                 </div>
               ))}
             </details>
             <span className="secure-note">
-              <Coffee size={14} /> Breakfast is included
+              <Coffee size={14} /> {room.plan?.name || 'Breakfast included'}
             </span>
           </div>
         </aside>
@@ -196,6 +195,7 @@ export function Checkout({ user, room, stay, onBack, onComplete, onRefresh }: an
 }
 export function Bookings({ staff, onExplore }: any) {
   const [data, setData] = useState<any[]>([]),
+    [notice, setNotice] = useState(''),
     [loading, setLoading] = useState(true),
     [error, setError] = useState('');
   const load = useCallback(() => {
@@ -226,6 +226,11 @@ export function Bookings({ staff, onExplore }: any) {
         )}
       </div>
       {error && <ErrorBox message={error} onRetry={load} />}
+      {notice && (
+        <p className="export-notice" role="status">
+          {notice}
+        </p>
+      )}
       {loading ? (
         <div className="skeleton table-skeleton" />
       ) : !data.length ? (
@@ -258,6 +263,10 @@ export function Bookings({ staff, onExplore }: any) {
                 <div>
                   <h3>{b.room_name}</h3>
                   <p>
+                    {b.plan_name}
+                    {b.promo_code ? ` · ${b.promo_code}` : ''}
+                  </p>
+                  <p>
                     {human(b.arrival)} — {human(b.departure)}
                   </p>
                   <span>
@@ -270,6 +279,7 @@ export function Bookings({ staff, onExplore }: any) {
           ))}
         </div>
       )}
+      {staff && <DailyExports notify={setNotice} />}
     </div>
   );
 }

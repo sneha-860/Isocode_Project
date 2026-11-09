@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import {day} from '../lib/domain.mjs';
 await mkdir('outputs/qa', { recursive: true });
 const browser = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const proc = spawn(
@@ -94,6 +95,16 @@ try {
   await screenshot('01-home-desktop');
   await click('Our stays');
   await wait("document.querySelectorAll('.result-card').length===3");
+  const setInput=async(selector,value)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await setInput('input[aria-label="Check-in date"]',day(Number(process.env.UI_STAY_OFFSET||40)));
+  await setInput('input[aria-label="Check-out date"]',day(Number(process.env.UI_STAY_OFFSET||40)+2));
+  await click('Find your stay');
+  await wait("document.querySelectorAll('.result-card').length===3&&!document.querySelector('.search-button').disabled");
+  await evaluate("(()=>{const e=document.querySelector('select[aria-label=\"Rate plan\"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'full-board');e.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await wait("!document.querySelector('.search-button').disabled&&document.querySelector('.result-card .amenities').textContent.includes('Full board')");
+  await setInput('input[aria-label="Promo code"]','MORA10');
+  await click('Apply code');
+  await wait("!!document.querySelector('.promo-savings')&&!document.querySelector('.search-button').disabled");
   await screenshot('02-availability');
   await click('Explore & book');
   await wait("!!document.querySelector('.detail-image')");
@@ -115,6 +126,7 @@ try {
   await evaluate("document.querySelector('.checkout-pay').click()");
   await wait("!!document.querySelector('.confirmation-card')");
   await screenshot('04-confirmation');
+  assert(await evaluate("document.querySelector('.confirmation-card').textContent.includes('Full board')&&document.querySelector('.confirmation-card').textContent.includes('MORA10')"));
   await click('My bookings');
   await wait("!!document.querySelector('.booking-record')");
   await click('Sign out');
@@ -146,6 +158,14 @@ try {
   await click('Rates & allotment');
   await wait("document.querySelectorAll('.rate-card').length===3");
   await screenshot('06-rates-desktop');
+  await click('Plans & promos');
+  await wait("document.querySelectorAll('.offer-card').length>=3");
+  await screenshot('10-plans-promos');
+  await click('Bookings');
+  await wait("!!document.querySelector('.daily-exports')");
+  await click('Prepare daily CSV');
+  await wait("!!document.querySelector('.export-list a')");
+  await screenshot('11-daily-exports');
   await click('Enquiry inbox');
   await wait("!!document.querySelector('.inbox-panel')");
   await click('Needs review');
@@ -176,6 +196,17 @@ try {
     'Availability overflows on mobile',
   );
   assert.deepEqual(errors, []);
+  await click('Sign out');
+  await click('Staff sign in');
+  await click('Use GM account');
+  await click('Sign in');
+  await wait("!!document.querySelector('.inbox-panel')");
+  await click('GM attention');
+  await wait("document.querySelector('h1')?.textContent.includes('details that need you')");
+  const unresolved=await evaluate("[...document.querySelectorAll('.enquiry-row')].find(e=>e.textContent.includes('Rohan Demo'))!==undefined");
+  if(unresolved){await evaluate("[...document.querySelectorAll('.enquiry-row')].find(e=>e.textContent.includes('Rohan Demo')).click()");await wait("!!document.querySelector('.gm-ack')");if(await evaluate("!document.querySelector('.gm-ack').disabled")){await click('Acknowledge as GM');await wait("document.querySelector('.gm-ack')?.disabled");}}
+  await screenshot('12-gm-mobile');
+  assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),'GM view overflows on mobile');
   console.log(
     'PASS: Chrome desktop/mobile, guest registration, booking, confirmation, bookings, staff inbox and rates; no JS exceptions or mobile overflow.',
   );

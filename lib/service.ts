@@ -8,7 +8,11 @@ import {
   day,
   stayDates,
   price,
+  quoteStay,
+  validatePromo,
+  exportWindow,
 } from './domain.mjs';
+import { dailyExport, bookingCsv } from './exports.mjs';
 import { analyzeEnquiry, fallbackAnalysis, hasGeminiKey, DEFAULT_GEMINI_MODEL } from './gemini.mjs';
 
 const db = () => {
@@ -41,6 +45,7 @@ async function hash(password: string, salt: string) {
 }
 const digest = async (s: string) =>
   hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+const operator = (u: any) => u && ['staff', 'gm'].includes(u.role);
 export const roomSeed = [
   { id: 'estate', name: 'Estate Room', capacity: 3, keys: 40, base: 750000, allotment: 8 },
   { id: 'canopy', name: 'Canopy Suite', capacity: 3, keys: 24, base: 950000, allotment: 5 },
@@ -129,6 +134,47 @@ async function seed() {
     );
   }
   await db().batch(statements);
+}
+async function seedAdditions() {
+  const hasPlan = await first("SELECT id FROM rate_plans WHERE id='standard'");
+  if (!hasPlan)
+    await db().batch([
+      q(
+        'INSERT OR IGNORE INTO rate_plans(id,name,description,adjustment,active) VALUES (?,?,?,?,1)',
+        'standard',
+        'Breakfast included',
+        'Room and breakfast for all booked guests.',
+        0,
+      ),
+      q(
+        'INSERT OR IGNORE INTO rate_plans(id,name,description,adjustment,active) VALUES (?,?,?,?,1)',
+        'full-board',
+        'Full board',
+        'Breakfast, lunch and dinner for all booked guests. Demo package.',
+        250000,
+      ),
+      q(
+        'INSERT OR IGNORE INTO promos(code,percent,valid_from,valid_until,min_nights,max_uses,active) VALUES (?,?,?,?,?,?,1)',
+        'MORA10',
+        10,
+        day(),
+        day(179),
+        2,
+        100,
+      ),
+    ]);
+  if (!(await first("SELECT id FROM users WHERE id='demo-gm'"))) {
+    const salt = crypto.randomUUID();
+    await q(
+      'INSERT OR IGNORE INTO users(id,email,name,role,password,salt) VALUES (?,?,?,?,?,?)',
+      'demo-gm',
+      'gm@mora.test',
+      'Meera Demo',
+      'gm',
+      await hash('GMDemo2026!', salt),
+      salt,
+    ).run();
+  }
 }
 async function ensureInventory(dates: string[]) {
   const statements = [];
@@ -232,10 +278,25 @@ async function finishAnalysis(enquiry: any) {
   ).run();
   return { analysis, applied: update.meta.changes > 0 };
 }
-async function availability(arrival: string, departure: string, guests: number) {
+async function availability(
+  arrival: string,
+  departure: string,
+  guests: number,
+  planId = 'standard',
+  promoCode = '',
+) {
   const dates = stayDates(arrival, departure);
   integer(guests, 1, 4);
   await ensureInventory(dates);
+  const plan = await first('SELECT * FROM rate_plans WHERE id=? AND active=1', planId);
+  if (!plan) throw Error('This rate plan is unavailable. Choose another plan.');
+  let promo = null;
+  if (promoCode) {
+    const code = text(promoCode, 2, 24).toUpperCase();
+    const found = await first('SELECT * FROM promos WHERE code=?', code);
+    const used = await first('SELECT count(*) AS n FROM bookings WHERE promo_code=?', code);
+    promo = validatePromo(found, dates, used.n);
+  }
   const data = await rows(
     'SELECT i.*, (SELECT count(*) FROM nights n WHERE n.room_id=i.room_id AND n.date=i.date) AS sold FROM inventory i WHERE date>=? AND date<? ORDER BY date',
     arrival,
@@ -245,8 +306,7 @@ async function availability(arrival: string, departure: string, guests: number) 
     const nights = data.filter((n) => n.room_id === r.id);
     return {
       ...r,
-      ...price(nights),
-      nights,
+      ...quoteStay(nights, plan, promo),
       available:
         r.capacity >= guests
           ? Math.max(0, Math.min(...nights.map((n) => (n.blackout ? 0 : n.allotment - n.sold))))
@@ -279,16 +339,32 @@ export async function handle(request: Request, path: string) {
         return fail('Send a JSON object.');
     }
     await seed();
+    await seedAdditions();
     const url = new URL(request.url),
       u = await user(request),
       method = request.method;
     if (method === 'GET' && path === 'session') return json({ user: u });
+    if (method === 'GET' && path === 'plans')
+      return json({
+        plans: await rows('SELECT * FROM rate_plans WHERE active=1 ORDER BY adjustment,id'),
+      });
+    if (method === 'POST' && path === 'jobs/daily-export') {
+      const supplied = request.headers.get('authorization') || '';
+      const secret = env.EXPORT_JOB_SECRET;
+      const privateBoundary =
+        env.PRIVATE_EXPORT_AUTOMATION === 'enabled' && env.APP_ORIGIN === url.origin;
+      const validSecret = secret && (await digest(supplied)) === (await digest('Bearer ' + secret));
+      if (!validSecret && !privateBoundary) return fail('Export job authorization required.', 403);
+      return json({ export: await dailyExport(db()) });
+    }
     if (method === 'GET' && path === 'availability')
       return json({
         rooms: await availability(
           url.searchParams.get('arrival') || '',
           url.searchParams.get('departure') || '',
           Number(url.searchParams.get('guests') || 2),
+          url.searchParams.get('planId') || 'standard',
+          url.searchParams.get('promoCode') || '',
         ),
       });
     if (method === 'POST' && path === 'auth') {
@@ -354,7 +430,7 @@ export async function handle(request: Request, path: string) {
         address = email(b.email),
         message = text(b.message, 10, 4000);
       const channel =
-        u?.role === 'staff' && ['Email', 'WhatsApp'].includes(b.channel) ? b.channel : 'Web form';
+        operator(u) && ['Email', 'WhatsApp'].includes(b.channel) ? b.channel : 'Web form';
       const count = await first(
         'SELECT count(*) AS n FROM enquiries WHERE email=? AND created>?',
         address,
@@ -404,8 +480,8 @@ export async function handle(request: Request, path: string) {
     if (method === 'GET' && path === 'bookings')
       return json({
         bookings: await rows(
-          `SELECT b.*,r.name AS room_name,u.name AS guest_name,u.email FROM bookings b JOIN rooms r ON r.id=b.room_id JOIN users u ON u.id=b.user_id ${u.role === 'staff' ? '' : 'WHERE b.user_id=?'} ORDER BY b.created DESC`,
-          ...(u.role === 'staff' ? [] : [u.id]),
+          `SELECT b.*,r.name AS room_name,u.name AS guest_name,u.email FROM bookings b JOIN rooms r ON r.id=b.room_id JOIN users u ON u.id=b.user_id ${operator(u) ? '' : 'WHERE b.user_id=?'} ORDER BY b.created DESC`,
+          ...(operator(u) ? [] : [u.id]),
         ),
       });
     if (method === 'POST' && path === 'bookings') {
@@ -414,6 +490,8 @@ export async function handle(request: Request, path: string) {
         guests = integer(b.guests, 1, 4),
         roomId = text(b.roomId),
         dates = stayDates(b.arrival, b.departure);
+      const planId = b.planId === undefined ? 'standard' : text(b.planId, 2, 50);
+      const promoCode = b.promoCode ? text(b.promoCode, 2, 24).toUpperCase() : null;
       const existing = await first('SELECT * FROM bookings WHERE request_key=?', requestKey);
       if (existing) {
         if (
@@ -421,16 +499,25 @@ export async function handle(request: Request, path: string) {
           existing.room_id !== roomId ||
           existing.arrival !== b.arrival ||
           existing.departure !== b.departure ||
-          existing.guests !== guests
+          existing.guests !== guests ||
+          existing.plan_id !== planId ||
+          existing.promo_code !== promoCode
         )
           return fail('Payment reference already used for another request.', 409);
         return json({ booking: existing });
       }
       if (b.payment !== 'success')
         return fail('The test payment was declined. No room was reserved.', 402);
-      const room = (await availability(b.arrival, b.departure, guests)).find(
-        (r) => r.id === roomId,
-      );
+      let choices;
+      try {
+        choices = await availability(b.arrival, b.departure, guests, planId, promoCode || '');
+      } catch (error) {
+        return fail(
+          error instanceof Error ? error.message : 'Booking terms changed. Refresh your quote.',
+          409,
+        );
+      }
+      const room = choices.find((r: any) => r.id === roomId);
       if (!room || !room.available)
         return fail('This stay has just sold out. Please choose another room or dates.', 409);
       if (room.total !== b.total)
@@ -438,7 +525,7 @@ export async function handle(request: Request, path: string) {
       const id = 'MORA-' + crypto.randomUUID().slice(0, 8).toUpperCase();
       const statements = [
         q(
-          'INSERT INTO bookings(id,user_id,room_id,arrival,departure,guests,total,request_key,created) VALUES (?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO bookings(id,user_id,room_id,arrival,departure,guests,total,request_key,created,plan_id,plan_name,plan_adjustment,promo_code,discount_percent,subtotal,discount,tax) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           id,
           u.id,
           roomId,
@@ -448,14 +535,24 @@ export async function handle(request: Request, path: string) {
           room.total,
           requestKey,
           Date.now(),
+          room.plan.id,
+          room.plan.name,
+          room.plan.adjustment,
+          room.promo?.code || null,
+          room.promo?.percent || 0,
+          room.subtotal,
+          room.discount,
+          room.tax,
         ),
         ...dates.map((date) =>
           q(
-            'INSERT INTO nights(booking_id,room_id,date,rate) VALUES (?,?,?,?)',
+            'INSERT INTO nights(booking_id,room_id,date,rate,net_rate,tax) VALUES (?,?,?,?,?,?)',
             id,
             roomId,
             date,
-            room.nights.find((n) => n.date === date)!.rate,
+            room.nights.find((n: any) => n.date === date)!.rate,
+            room.nights.find((n: any) => n.date === date)!.net_rate,
+            room.nights.find((n: any) => n.date === date)!.tax,
           ),
         ),
       ];
@@ -473,7 +570,9 @@ export async function handle(request: Request, path: string) {
           retry.room_id === roomId &&
           retry.arrival === b.arrival &&
           retry.departure === b.departure &&
-          retry.guests === guests
+          retry.guests === guests &&
+          retry.plan_id === planId &&
+          retry.promo_code === promoCode
         )
           return json({ booking: retry });
         return fail(
@@ -483,7 +582,167 @@ export async function handle(request: Request, path: string) {
       }
       return json({ booking: await first('SELECT * FROM bookings WHERE id=?', id) }, 201);
     }
-    if (u.role !== 'staff') return fail('Reservations staff access required.', 403);
+    if (!operator(u)) return fail('Reservations staff access required.', 403);
+    if (method === 'POST' && path === 'inbox/route') {
+      const id = text(body.id),
+        category = body.category;
+      if (!categories.includes(category)) return fail('Choose a valid enquiry category.');
+      const old = await first('SELECT * FROM enquiries WHERE id=?', id);
+      if (!old) return fail('Enquiry not found.', 404);
+      const reopen = ['Complaint', 'Unsorted'].includes(category) && old.category !== category;
+      await db().batch([
+        q(
+          'UPDATE enquiries SET category=?,owner=?,alert=?,gm_acknowledged_at=?,gm_acknowledged_by=? WHERE id=?',
+          category,
+          (owners as Record<string, string>)[category],
+          old.alert || category === 'Complaint' ? 1 : 0,
+          reopen ? null : old.gm_acknowledged_at,
+          reopen ? null : old.gm_acknowledged_by,
+          id,
+        ),
+        q(
+          'INSERT INTO audit(user_id,action,detail,created) VALUES (?,?,?,?)',
+          u.id,
+          'one-click-route',
+          JSON.stringify({ id, from: old.category, to: category }),
+          Date.now(),
+        ),
+      ]);
+      return json({ ok: true });
+    }
+    if (method === 'POST' && path === 'inbox/acknowledge') {
+      if (u.role !== 'gm')
+        return fail('Only the General Manager can acknowledge escalations.', 403);
+      const id = text(body.id);
+      const old = await first('SELECT * FROM enquiries WHERE id=?', id);
+      if (!old) return fail('Enquiry not found.', 404);
+      if (!old.alert && old.category !== 'Unsorted')
+        return fail('This enquiry does not require GM attention.');
+      await db().batch([
+        q(
+          'UPDATE enquiries SET gm_acknowledged_at=?,gm_acknowledged_by=? WHERE id=?',
+          Date.now(),
+          u.id,
+          id,
+        ),
+        q(
+          'INSERT INTO audit(user_id,action,detail,created) VALUES (?,?,?,?)',
+          u.id,
+          'gm-acknowledgement',
+          id,
+          Date.now(),
+        ),
+      ]);
+      return json({ ok: true });
+    }
+    if (method === 'GET' && path === 'offers')
+      return json({
+        plans: await rows('SELECT * FROM rate_plans ORDER BY adjustment,id'),
+        promos: await rows(
+          'SELECT p.*,(SELECT count(*) FROM bookings b WHERE b.promo_code=p.code) AS uses FROM promos p ORDER BY p.code',
+        ),
+      });
+    if (method === 'POST' && path === 'plans') {
+      const b = body,
+        id = b.id ? text(b.id, 2, 50) : 'plan-' + crypto.randomUUID().slice(0, 8);
+      const name = text(b.name, 3, 70),
+        description = text(b.description, 5, 250),
+        adjustment = integer(b.adjustment, 0, 10000000);
+      if (typeof b.active !== 'boolean') return fail('Choose whether the plan is on sale.');
+      await db().batch([
+        q(
+          'INSERT INTO rate_plans(id,name,description,adjustment,active) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,adjustment=excluded.adjustment,active=excluded.active',
+          id,
+          name,
+          description,
+          adjustment,
+          b.active ? 1 : 0,
+        ),
+        q(
+          'INSERT INTO audit(user_id,action,detail,created) VALUES (?,?,?,?)',
+          u.id,
+          'rate-plan-update',
+          id,
+          Date.now(),
+        ),
+      ]);
+      return json({ ok: true, id });
+    }
+    if (method === 'POST' && path === 'promos') {
+      const b = body,
+        code = text(b.code, 2, 24).toUpperCase();
+      if (!/^[A-Z0-9_-]+$/.test(code))
+        return fail('Use letters, numbers, hyphens or underscores in a promo code.');
+      const validDate = (d: any) =>
+        typeof d === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(d) &&
+        Number.isFinite(Date.parse(d)) &&
+        new Date(d).toISOString().slice(0, 10) === d;
+      if (!validDate(b.validFrom) || !validDate(b.validUntil) || b.validUntil < b.validFrom)
+        return fail('Choose a valid promo date range.');
+      const percent = integer(b.percent, 1, 50),
+        minNights = integer(b.minNights, 1, 14),
+        maxUses = integer(b.maxUses, 1, 10000);
+      if (typeof b.active !== 'boolean') return fail('Choose whether the promo is enabled.');
+      const used = await first('SELECT count(*) AS n FROM bookings WHERE promo_code=?', code);
+      if (maxUses < used.n)
+        return fail('The booking limit cannot be lower than completed redemptions.', 409);
+      try {
+        await db().batch([
+          q(
+            'INSERT INTO promos(code,percent,valid_from,valid_until,min_nights,max_uses,active) VALUES (?,?,?,?,?,?,?) ON CONFLICT(code) DO UPDATE SET percent=excluded.percent,valid_from=excluded.valid_from,valid_until=excluded.valid_until,min_nights=excluded.min_nights,max_uses=excluded.max_uses,active=excluded.active',
+            code,
+            percent,
+            b.validFrom,
+            b.validUntil,
+            minNights,
+            maxUses,
+            b.active ? 1 : 0,
+          ),
+          q(
+            'INSERT INTO audit(user_id,action,detail,created) VALUES (?,?,?,?)',
+            u.id,
+            'promo-update',
+            code,
+            Date.now(),
+          ),
+        ]);
+      } catch {
+        return fail(
+          'The promo changed while being saved. Refresh and check its redemption count.',
+          409,
+        );
+      }
+      return json({ ok: true, code });
+    }
+    if (method === 'GET' && path === 'exports')
+      return json({
+        exports: await rows(
+          'SELECT date,count,created,delivery FROM daily_exports ORDER BY date DESC LIMIT 90',
+        ),
+      });
+    if (method === 'POST' && path === 'exports') {
+      const date = body.date || day(-1);
+      exportWindow(date);
+      if (date === day())
+        return fail('Daily exports close completed days. Use the booking-book CSV for today.');
+      const result = await dailyExport(db(), date);
+      await audit(u.id, 'daily-export', date);
+      return json({ export: result });
+    }
+    if (method === 'GET' && path === 'exports/file') {
+      const date = url.searchParams.get('date') || '';
+      exportWindow(date);
+      const file = await first('SELECT csv FROM daily_exports WHERE date=?', date);
+      if (!file) return fail('Generate this daily export first.', 404);
+      return new Response(file.csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="mora-bookings-${date}.csv"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
     if (method === 'GET' && path === 'inbox')
       return json({
         enquiries: await rows('SELECT * FROM enquiries ORDER BY alert DESC, created DESC'),
@@ -592,36 +851,13 @@ export async function handle(request: Request, path: string) {
       const data = await rows(
         'SELECT b.*,r.name AS room_name,u.name AS guest_name,u.email FROM bookings b JOIN rooms r ON r.id=b.room_id JOIN users u ON u.id=b.user_id ORDER BY b.created DESC',
       );
-      const csv = (v: any) =>
-        '"' +
-        String(v ?? '')
-          .replace(/^[=+@\-\t\r]/, "'$&")
-          .replaceAll('"', '""') +
-        '"';
-      return new Response(
-        [
-          ['Reference', 'Guest', 'Email', 'Room', 'Arrival', 'Departure', 'Guests', 'Total INR'],
-          ...data.map((b) => [
-            b.id,
-            b.guest_name,
-            b.email,
-            b.room_name,
-            b.arrival,
-            b.departure,
-            b.guests,
-            (b.total / 100).toFixed(2),
-          ]),
-        ]
-          .map((row) => row.map(csv).join(','))
-          .join('\r\n'),
-        {
-          headers: {
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': 'attachment; filename="mora-bookings.csv"',
-            'Cache-Control': 'no-store',
-          },
+      return new Response(bookingCsv(data), {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="mora-bookings.csv"',
+          'Cache-Control': 'no-store',
         },
-      );
+      });
     }
     return fail('This action is not available.', 404);
   } catch (error) {
