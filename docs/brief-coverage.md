@@ -13,7 +13,7 @@ All product assumptions are in the TDD. This is the permitted test-mode build, n
 | Wrong/uncertain AI | Unsorted/GM review, safe timeout/error fallback, one-click route changes and persistent complaint escalation. |
 | GM can see escalations | Dedicated GM role, attention view, unread count, acknowledgement and retained audit history. |
 | Structured wedding/event form | Purpose, preferred date, number of guests, budget and message, creating a persistent enquiry. |
-| Daily reservation-system export | Durable daily CSV by India creation date, plan/promo/tax snapshots, protected unattended writer, automatic local scheduler; external import explicitly simulated. Hosted writer readback passed; linked daily cloud schedule is enabled at 06:00 Asia/Kolkata. |
+| Daily reservation-system export | Durable daily CSV by India creation date, plan/promo/tax snapshots, protected unattended writer, automatic local scheduler; external import explicitly simulated. Public hosted writer readback passed with job-secret authentication. The earlier private-only cloud task stops on public access; public unattended scheduling needs secure credential configuration. Staff exports and local scheduling work. |
 | Responsive design and states | Designed guest/staff screens, 390px and desktop checks, error/loading/empty states and protected editing during AI work. |
 | Backend/database/sign-in/roles | Worker API, D1, guest/staff/GM accounts, hashed passwords/sessions, validation, guest isolation and protected actions. |
 | Submission | Public GitHub and history; regenerated ZIP containing exactly TDD PDF and deployment.md. |

@@ -2,7 +2,7 @@
 
 Confirmed on 9 November 2026.
 
-The complete implementation is deployed successfully at https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site. Access remains owner-private. The public repository and local setup support independent review.
+The complete implementation is deployed successfully at https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site. Access is now public at the user's request. The public repository and local setup support independent review.
 
 ## Verified release
 
@@ -18,12 +18,16 @@ Local verification passed 29 automated tests, TypeScript/build, original and ful
 
 Booking, plans/promos, rates/allotment/blackouts, atomic room and promo limits, structured enquiries, Gemini routing/drafts/fallback, one-click correction, GM acknowledgement and daily CSV snapshots are implemented. External payments, messaging and reservation-system delivery remain simulated as the brief permits.
 
-## Daily cloud schedule
+## Public access update
+
+Runtime revision 3 was successfully deployed as `appgdep_6af205c5e420819192c15c953b36e972`, then access policy revision 2 made the Site public. Anonymous home and plans return 200, inbox 401 and export job 403. An export request authenticated with the job secret returns 200 and the persisted snapshot. `PRIVATE_EXPORT_AUTOMATION` is disabled; the Gemini and export secrets are preserved.
+
+## Earlier daily cloud schedule
 
 Linked automation: `Automation_c650acd00a208191a799229152646bfe`, **Prepare Mora Estate daily booking export**.
 
-Enabled: yes. Timing: daily at 06:00 `Asia/Kolkata`. The protected writer was exercised through its intended Sites service access and returned the persisted result before scheduling. The first scheduled occurrence has not yet run; saving the schedule is not evidence of a scheduled execution. Local and hosted databases are separate.
+Saved task enabled: yes, but its instructions explicitly stop on public access. It is therefore not an operational public scheduler. Public unattended scheduling needs a secure job-secret-bearing runner; no such cloud runner is currently configured. Local automatic exports and staff-created hosted snapshots remain available. Original timing: daily at 06:00 `Asia/Kolkata`. The protected writer was exercised through its intended Sites service access and returned the persisted result before scheduling. The first scheduled occurrence has not yet run; saving the schedule is not evidence of a scheduled execution. Local and hosted databases are separate.
 
 The writer is idempotent by completed India date. Zero-booking days have valid CSVs. Staff can download snapshots under Bookings > Daily handoff. Normal runs do not republish the app. Instructions are recorded in `.openai/daily-export.md`; no credentials are stored there or in the task prompt.
 
-Earlier version-2 publication failures are superseded by this successful full release. Preserve owner-private access. A future public deployment must disable private-boundary automation and require explicit job-secret authentication before scheduling again.
+Earlier version-2 publication failures are superseded by this successful full release. Public access is intentional. Private-boundary automation has been disabled; unattended writers require explicit job-secret authentication.

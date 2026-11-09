@@ -4,9 +4,9 @@ A direct-booking experience for the hill-resort brief, with a working reservatio
 
 **Repository:** https://github.com/sneha-860/Isocode_Project
 
-**Sites address:** https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site (owner-private; use local setup for independent review).
+**Sites address:** https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site (public demo; application sign-in protects bookings and staff work).
 
-The complete release is deployed at the owner-private address above. Gemini integration is verified locally; hosted rate plans and the protected daily-export writer pass HTTP checks. The daily export schedule is enabled for 06:00 Asia/Kolkata. See [deployment status](docs/deployment-status.md).
+The complete release is publicly accessible. Anonymous booking pages work; staff and job endpoints remain protected. Public export jobs require `EXPORT_JOB_SECRET`; the earlier private-only cloud task stops safely on public access. Local daily scheduling and staff-created hosted exports remain available. See [deployment status](docs/deployment-status.md).
 
 ## Review in five minutes
 

@@ -4,9 +4,9 @@ GitHub: https://github.com/sneha-860/Isocode_Project
 
 Sites address: https://mora-estate-coffee-stays.dynamicbolt1.chatgpt.site
 
-The Sites deployment is owner-private. A reviewer can run the complete app locally; a public GitHub repository does not grant access to a private Sites app.
+The Sites deployment is public: anyone with the URL can open the booking website. Booking/account and staff actions still require application sign-in. The supplied accounts and all sample data are fictional demo fixtures.
 
-**Full-brief release status (9 November 2026):** the complete release is deployed successfully, from commit `b3712dda1f35efd950803ca62d713a950a69fc43`. Local verification includes 29 automated tests, end-to-end API suites, Chrome desktop/phone checks and real Gemini calls. Hosted rate plans and the protected daily-export writer both returned HTTP 200; the writer persisted/read back the 8 November snapshot. The linked cloud schedule is enabled for 06:00 Asia/Kolkata. Its first scheduled occurrence has not yet run. See `docs/deployment-status.md` for identifiers.
+**Full-brief release status (9 November 2026):** the complete release is deployed successfully, from commit `b3712dda1f35efd950803ca62d713a950a69fc43`. Local verification includes 29 automated tests, end-to-end API suites, Chrome desktop/phone checks and real Gemini calls. Hosted rate plans and the protected daily-export writer both returned HTTP 200; the writer persisted/read back the 8 November snapshot. Public sharing was enabled on 9 November 2026 after deployment of runtime revision 3. Anonymous home/plans return 200; anonymous inbox returns 401 and export job returns 403. A secret-authenticated export returns 200. The earlier owner-private cloud schedule is still saved but its safety guard stops on public access; it is not an operational public export scheduler. Local unattended exports and staff-created hosted snapshots remain available. See `docs/deployment-status.md` for identifiers.
 
 ## Prerequisites
 
@@ -128,15 +128,4 @@ To run the protected job immediately:
 npm run exports:daily
 ```
 
-For hosted automation, the supported Sites cloud schedule invokes the private writer described in `.openai/daily-export.md`. It is enabled following successful publication and writer readback on 9 November 2026. The schedule must be at 06:00 Asia/Kolkata and use service access fetched for this exact private Site; no credentials belong in the task prompt or source. The writer returns the stored date and count. The same date is idempotent. A public deployment must instead use explicit job-secret authentication; never broaden sharing to make an unattended task work. See `docs/deployment-status.md` for the actual hosted activation state.
-
-For a prior local checkout, apply only migrations that have not already been applied: `0003_petite_ironclad.sql` and `0004_commerce_guards.sql` add the full-brief features after Gemini. Schema migrations preserve historical bookings; unknown legacy tax breakdowns are left blank in exports rather than reconstructed from current prices.
-
-## Recreate the requested ZIP
-
-```sh
-python -m pip install reportlab
-python scripts/make-submission.py
-```
-
-Output: `outputs/Mora-Estate-Submission.zip`, containing exactly `Mora-Estate-TDD.pdf` and `deployment.md`. Screenshot inclusion uses `outputs/qa` when browser QA has run. The generator does not include code, runtime records, credentials or other files in the ZIP.
+For hosted automation on this public deployment, POST `{}` to `/api/jobs/daily-export` with `Authorization: Bearer <EXPORT_JOB_SECRET>` supplied securely by the scheduler environment. The secret is never part of source, browser code or a schedule prompt. `PRIVATE_EXPORT_AUTOMATION` is disabled in hosted runtime revision 3. The previous owner-private Sites task deliberately stops if it detects public access, so it does not provide scheduled public updates. A separately configured secret-bearing scheduler is required for unattended hosted execution. Local automatic execution and authenticated staff snapshot generation/download continue to work. See `docs/deployment-status.md`.

@@ -47,8 +47,8 @@ def bullet(s): p('&#8226; '+s)
 
 p(f'<b>GitHub URL:</b> <link href="{REPO}" color="#294b3d">{REPO}</link>','SmallCopy')
 p(f'<b>App URL:</b> <link href="{LIVE}" color="#294b3d">{LIVE}</link>','SmallCopy')
-p('App access: owner-private Sites deployment. Independent reviewers can run the full app locally. See deployment.md.','SmallCopy')
-p('Complete release deployed on 9 November 2026. Local verification includes real Gemini calls; hosted plans/export checks pass. The daily cloud schedule is enabled at 06:00 Asia/Kolkata; its first scheduled run is pending. See deployment.md.','SmallCopy')
+p('App access: public demo website. Booking/account and staff actions require application sign-in. Local setup is also available. See deployment.md.','SmallCopy')
+p('Public access verified on 9 November 2026. Booking pages open anonymously; staff data and export jobs are protected. The previous private-only cloud task stops on public access; hosted unattended execution needs a secret-bearing scheduler. Local daily scheduling works.','SmallCopy')
 story.append(Spacer(1,32));p('MORA ESTATE  /  09 NOVEMBER 2026','Label')
 p('A slower stay.<br/>A faster first reply.','Hero')
 p('Technical Design Document','Sub')
@@ -156,7 +156,7 @@ heading('Commercial terms are guarded at commit')
 p('rate_plans stores inclusions, supplement and on-sale state; promos stores code, percentage, occupied-night validity, minimum stay and booking cap. Guests select them before checkout. Booking snapshots preserve original terms after later admin edits. SQL triggers re-check plan/promo state and count redemptions inside the booking transaction, alongside every-night stock guards.')
 heading('Explicit added assumptions: A13 and A14')
 p('A13: full board adds Rs 2,500 per room/night for all booked guests. MORA10 gives 10% off a minimum two-night stay, capped at 100 bookings and valid for the seeded horizon. Admins may change these illustrative terms. One percentage code applies before nightly GST; the discounted package tariff determines the band. Real commercial tax treatment needs resort approval.')
-p('A14: daily_exports stores one immutable CSV per completed India booking-creation day, including empty days. Generation is due at 06:00 Asia/Kolkata. The local launcher starts a background worker automatically; hosted scheduling uses the protected HTTP writer and a Sites cloud task after publication/readback. Repeated runs reuse the file. Reservation-system import is simulated.')
+p('A14: daily_exports stores one immutable CSV per completed India booking-creation day, including empty days. Generation is due at 06:00 Asia/Kolkata. The local launcher starts a background worker automatically; the public hosted writer requires its job secret. The prior private-only task stops on public access; a secret-bearing hosted scheduler remains to be configured. Repeated runs reuse the file. Reservation-system import is simulated.')
 heading('GM acknowledgement and one-click correction')
 p('The GM signs in separately and sees all escalations, pending counts and acknowledgement history. Only this role can acknowledge an alert. Acknowledgement does not erase complaint history. Quick-route buttons change category/owner immediately; re-escalation opens attention again. Draft editing stays separate from routing and external send approval.')
 
@@ -179,13 +179,13 @@ p('Only synthetic guest data is seeded. Gemini receives contact-redacted enquiry
 
 chapter('08','Ship the core. Name the next risks.')
 heading('Delivery and reproducibility')
-p('The public repository URL is at the top of this document. Source history is preserved. deployment.md supplies local setup, exact migration commands, the owner-private hosting address, demo accounts, environment/binding names and a reviewer walkthrough. The ZIP contains exactly this PDF and deployment.md; the code stays in GitHub.')
+p('The public repository URL is at the top of this document. Source history is preserved. deployment.md supplies local setup, exact migration commands, the public hosting address, demo accounts, environment/binding names and a reviewer walkthrough. The ZIP contains exactly this PDF and deployment.md; the code stays in GitHub.')
 heading('Explicit assumptions: evaluation and operations')
 table(['ID','Assumption / limitation'],[
  ['A7','Public demo logins are intentional; registration is unverified. No password recovery or staff invitation workflow is included.'],
  ['A8','Payments are synchronous test outcomes. Incoming/outgoing emails, WhatsApp and reservation-system delivery are simulated; no real message is sent.'],
  ['A9','Gemini is used only when a server key is configured. Local templates are explicit fallbacks, not disguised live AI. Team ownership and GM attention are application fields, not external notifications.'],
- ['A10','The app is owner-private on Sites; public GitHub and local setup enable review. Public guest hosting requires an intentional sharing change.'],
+ ['A10','The user requested public Sites access for review. Synthetic demo logins are intentionally published; this is an evaluation build.'],
  ['A11','GST is implemented as 5% up to Rs 7,500 per unit/night and 18% above, with tax rounded nightly in paise. The resort must validate its actual tax treatment before commercial launch.'],
  ['A12','All booking defaults, server date validation and export-day boundaries use Asia/Kolkata. Daily exports cover the previous completed India creation day at 06:00.']
 ],[35,455])

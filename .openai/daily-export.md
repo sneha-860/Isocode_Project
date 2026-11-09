@@ -1,3 +1,9 @@
+# Public deployment notice
+
+The Site is now public at the user's request. The previous private-only Sites cloud task must stop as instructed; its service-access credential alone does not authorize this writer. Hosted runtime revision 3 disables PRIVATE_EXPORT_AUTOMATION. Public unattended execution requires EXPORT_JOB_SECRET supplied securely by a scheduler environment, never embedded in task prompts or source. Local scheduling and authenticated staff exports remain available. No public cloud runner with that secret has been configured.
+
+The following historical private-mode instructions apply only if owner-private access is intentionally restored and verified.
+
 # Daily booking export
 
 At 06:00 Asia/Kolkata each day, generate the previous completed India-calendar day's booking export. The reservation-system handoff is intentionally simulated.
